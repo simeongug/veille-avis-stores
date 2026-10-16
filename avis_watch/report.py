@@ -195,17 +195,22 @@ def _cells(s):
     """Trois cellules (note, avis, avis à 1-2 étoiles) avec leur variation colorée."""
     if not s["n"]:
         return ("—", "", "0", "", "—", "")
-    if s["d_avg"] is None or abs(s["d_avg"]) < 0.05:
-        d1 = delta("= stable" if s["d_avg"] is not None else "peu d'avis", "flat")
+    if s["d_avg"] is None:
+        d1 = delta("–", "flat")
+    elif abs(s["d_avg"]) < 0.05:
+        d1 = delta("=", "flat")
     else:
         d1 = delta(f"{_arrow(s['d_avg'])}{fnum(abs(s['d_avg']))}", "good" if s["d_avg"] > 0 else "bad")
     if s["vs_base"] is None:
         d2 = ""
+    elif abs(s["vs_base"]) < 5:
+        d2 = delta("=", "flat")
     else:
-        d2 = delta(f"{_arrow(s['vs_base'])}{abs(round(s['vs_base']))} % vs normale" if abs(s["vs_base"]) >= 5
-                   else "= normale", "flat")
-    if s["d_neg"] is None or abs(s["d_neg"]) < 1:
-        d3 = delta("= stable" if s["d_neg"] is not None else "peu d'avis", "flat")
+        d2 = delta(f"{_arrow(s['vs_base'])}{abs(round(s['vs_base']))} %", "flat")
+    if s["d_neg"] is None:
+        d3 = delta("–", "flat")
+    elif abs(s["d_neg"]) < 1:
+        d3 = delta("=", "flat")
     else:
         d3 = delta(f"{_arrow(s['d_neg'])}{abs(round(s['d_neg']))} pts", "bad" if s["d_neg"] > 0 else "good")
     return (fnum(s["avg"]), d1, str(s["n"]), d2, f"{round(s['neg'] * 100)} %", d3)
@@ -213,19 +218,21 @@ def _cells(s):
 
 def stats_table(rows):
     def cell(value, d):
-        return (f'<td style="padding:10px 12px 10px 0;vertical-align:top"><div style="font-size:20px;'
-                f'font-weight:700;line-height:1.2">{value}</div><div style="min-height:16px">{d}</div></td>')
+        return (f'<td style="padding:6px 14px 6px 0;white-space:nowrap"><span style="font-size:15px;'
+                f'font-weight:700">{value}</span> {d}</td>')
 
-    head = "".join(f'<td style="padding:0 12px 4px 0;font-size:12px;color:{GREY}">{t}</td>'
-                   for t in ("", "Note", "Avis", "Avis à 1-2 ★"))
+    head = "".join(f'<td style="padding:0 14px 4px 0;font-size:12px;color:{GREY}">{t}</td>'
+                   for t in ("", "Note", "Avis", "Avis 1-2 ★"))
     body = ""
     for label, s in rows:
         c = _cells(s)
-        body += (f'<tr style="border-top:1px solid {LINE}"><td style="padding:12px 12px 10px 0;vertical-align:top;'
-                 f'font-size:14px;font-weight:600">{e(label)}</td>'
+        body += (f'<tr style="border-top:1px solid {LINE}"><td style="padding:6px 14px 6px 0;font-size:13px;'
+                 f'font-weight:600;white-space:nowrap">{e(label)}</td>'
                  f'{cell(c[0], c[1])}{cell(c[2], c[3])}{cell(c[4], c[5])}</tr>')
+    legend = (f'<div style="font-size:11px;color:{GREY};margin-top:4px">Variations : note et avis 1-2 ★ '
+              f'vs la veille, nombre d\'avis vs la moyenne des 7 derniers jours.</div>')
     return (f'<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;'
-            f'margin-top:18px"><tr>{head}</tr>{body}</table>')
+            f'margin-top:16px"><tr>{head}</tr>{body}</table>{legend}')
 
 
 def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag=""):
