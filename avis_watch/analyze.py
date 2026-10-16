@@ -77,16 +77,20 @@ def _gemini(model, system, user, max_tokens, json_mode):
     if json_mode:
         body["generationConfig"]["responseMimeType"] = "application/json"
     headers = {"x-goog-api-key": os.environ["GEMINI_API_KEY"], "Content-Type": "application/json"}
-    for attempt in range(5):
+    last = ""
+    for attempt in range(3):
         r = requests.post(url, headers=headers, json=body, timeout=120)
-        if r.status_code in (429, 500, 503):  # limite du niveau gratuit ou surcharge : on attend
-            time.sleep(min(60, 8 * 2 ** attempt))
+        if r.status_code in (429, 500, 503):  # limite du niveau gratuit ou surcharge
+            last = f"HTTP {r.status_code} ({model}) : {r.text[:220]}"
+            if r.status_code == 429 and re.search(r"limit:\s*0|PerDay|per day", r.text):
+                break  # quota nul ou journalier : inutile d'attendre, on change de modèle
+            time.sleep(min(45, 10 * 2 ** attempt))
             continue
         if r.status_code != 200:
-            raise RuntimeError(f"Gemini HTTP {r.status_code} : {r.text[:200]}")
+            raise RuntimeError(f"Gemini HTTP {r.status_code} ({model}) : {r.text[:200]}")
         parts = r.json()["candidates"][0]["content"]["parts"]
         return "".join(p.get("text", "") for p in parts)
-    raise RuntimeError("Gemini : limite atteinte après plusieurs tentatives")
+    raise RuntimeError(f"Gemini {last}")
 
 
 def _claude(model, system, user, max_tokens):
@@ -108,7 +112,7 @@ def llm_text(cfg, role, system, user, max_tokens=1500, json_mode=False):
                 return _gemini(m, system, user, max_tokens, json_mode)
             except RuntimeError as ex:
                 last = ex
-                if "HTTP 404" not in str(ex):  # modèle inconnu : on essaie le suivant ; autre erreur : on s'arrête
+                if not re.search(r"HTTP (404|429|500|503)", str(ex)):  # modèle inconnu ou saturé : suivant
                     raise
         raise last
     return _claude(model, system, user, max_tokens)
@@ -157,7 +161,7 @@ def _llm_batch(cfg, batch):
               "texte": f"{r.get('title', '')} {r.get('text', '')}".strip()[:600]}
              for n, r in enumerate(batch)]
     out = llm_text(cfg, "classify", SYSTEM.format(themes=", ".join(cfg["themes"])),
-                   json.dumps(items, ensure_ascii=False), max_tokens=6000, json_mode=True)
+                   json.dumps(items, ensure_ascii=False), max_tokens=4000, json_mode=True)
     res = {}
     for row in parse_json_array(out):
         r = batch[int(row["i"]) - 1]
@@ -182,8 +186,8 @@ def classify(cfg, recs, use_llm=True, now=None):
     STATUS["provider"] = provider() if llm else None
     limit = timedelta(days=cfg.get("llm", {}).get("recent_days", 3))
     smart = [r for r in todo if llm and now and now - datetime.fromisoformat(r["first_seen"]) <= limit]
-    for i in range(0, len(smart), 50):
-        batch = smart[i:i + 50]
+    for i in range(0, len(smart), 25):
+        batch = smart[i:i + 25]
         try:
             res = _llm_batch(cfg, batch)
         except Exception as ex:  # noqa: BLE001
