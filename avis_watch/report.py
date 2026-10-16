@@ -39,6 +39,23 @@ def meta_of(r):
     return f"{STORES[r['store']]} · {country(r['country'])} · {r['rating']}/5"
 
 
+_MENUS = sorted((v for k, v in THEME_LABELS.items() if k not in ("autre", "contenu")), key=len, reverse=True)
+
+
+def emphasize(text):
+    """HTML d'une phrase où chaque nom de menu (ex. Connexion et compte) est en gras entre guillemets."""
+    out = e(text)
+    for lab in _MENUS:
+        out = re.sub(re.escape(e(lab)), f"<b>“{e(lab)}”</b>", out, flags=re.I)
+    return out
+
+
+def title_html(pb):
+    if pb["title"] == THEME_LABELS.get(pb["theme"]) and pb["theme"] not in ("autre", "contenu"):
+        return f"<b>“{e(pb['title'])}”</b>"
+    return f"<b>{e(pb['title'])}</b>"
+
+
 def _mean(xs):
     return sum(xs) / len(xs) if xs else None
 
@@ -161,10 +178,10 @@ def summary_lines(cfg, ctx, day, use_llm):
             out = analyze.llm_text(
                 cfg, "summary",
                 "Tu rédiges les 2 ou 3 lignes « À retenir » d'un email quotidien pour une équipe produit. "
-                "Français, phrases courtes et concrètes, la plus importante d'abord, sans jargon. "
+                "Français, phrases courtes et concrètes, la plus importante d'abord, sans jargon, sans guillemets ni gras. "
                 "Utilise uniquement les faits fournis, n'invente aucun chiffre. Une phrase par ligne, "
                 "sans puces ni titre.", json.dumps(facts, ensure_ascii=False), max_tokens=500)
-            lines = [ln.strip("-•* ").strip() for ln in out.splitlines() if ln.strip()]
+            lines = [ln.replace("**", "").strip("-•* ").strip() for ln in out.splitlines() if ln.strip()]
             if lines:
                 return lines[:3]
         except Exception as ex:  # noqa: BLE001
@@ -192,9 +209,9 @@ def _arrow(x):
 
 
 def _cells(s):
-    """Trois cellules (note, avis, avis à 1-2 étoiles) avec leur variation colorée."""
+    """Deux cellules (moyenne du jour, avis) avec leur variation colorée."""
     if not s["n"]:
-        return ("—", "", "0", "", "—", "")
+        return ("—", "", "0", "")
     if s["d_avg"] is None:
         d1 = delta("–", "flat")
     elif abs(s["d_avg"]) < 0.05:
@@ -207,31 +224,25 @@ def _cells(s):
         d2 = delta("=", "flat")
     else:
         d2 = delta(f"{_arrow(s['vs_base'])}{abs(round(s['vs_base']))} %", "flat")
-    if s["d_neg"] is None:
-        d3 = delta("–", "flat")
-    elif abs(s["d_neg"]) < 1:
-        d3 = delta("=", "flat")
-    else:
-        d3 = delta(f"{_arrow(s['d_neg'])}{abs(round(s['d_neg']))} pts", "bad" if s["d_neg"] > 0 else "good")
-    return (fnum(s["avg"]), d1, str(s["n"]), d2, f"{round(s['neg'] * 100)} %", d3)
+    return (fnum(s["avg"]), d1, str(s["n"]), d2)
 
 
 def stats_table(rows):
     def cell(value, d):
-        return (f'<td style="padding:6px 14px 6px 0;white-space:nowrap"><span style="font-size:15px;'
+        return (f'<td style="padding:6px 18px 6px 0;white-space:nowrap"><span style="font-size:15px;'
                 f'font-weight:700">{value}</span> {d}</td>')
 
-    head = "".join(f'<td style="padding:0 14px 4px 0;font-size:12px;color:{GREY}">{t}</td>'
-                   for t in ("", "Note", "Avis", "Avis 1-2 ★"))
+    head = "".join(f'<td style="padding:0 18px 4px 0;font-size:12px;color:{GREY}">{t}</td>'
+                   for t in ("", "Moyenne du jour", "Avis"))
     body = ""
     for label, s in rows:
         c = _cells(s)
-        body += (f'<tr style="border-top:1px solid {LINE}"><td style="padding:6px 14px 6px 0;font-size:13px;'
+        body += (f'<tr style="border-top:1px solid {LINE}"><td style="padding:6px 18px 6px 0;font-size:13px;'
                  f'font-weight:600;white-space:nowrap">{e(label)}</td>'
-                 f'{cell(c[0], c[1])}{cell(c[2], c[3])}{cell(c[4], c[5])}</tr>')
-    legend = (f'<div style="font-size:11px;color:{GREY};margin-top:4px">Variations : note et avis 1-2 ★ '
-              f'vs la veille, nombre d\'avis vs la moyenne des 7 derniers jours.</div>')
-    return (f'<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;'
+                 f'{cell(c[0], c[1])}{cell(c[2], c[3])}</tr>')
+    legend = (f'<div style="font-size:11px;color:{GREY};margin-top:4px">Variations : moyenne vs la veille, '
+              f'nombre d\'avis vs la moyenne des 7 derniers jours.</div>')
+    return (f'<table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;'
             f'margin-top:16px"><tr>{head}</tr>{body}</table>{legend}')
 
 
@@ -242,18 +253,18 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag=""):
     problems, watch, late = ctx["problems"], ctx["watch"], ctx["late"]
 
     blocks, txt = [], []
-    blocks.append('<div style="margin-top:18px">' + "".join(p(e(ln), "font-size:16px") for ln in lines) + "</div>")
+    blocks.append('<div style="margin-top:18px">' + "".join(p(emphasize(ln), "font-size:16px") for ln in lines) + "</div>")
     txt += lines + [""]
     blocks.append(stats_table(ctx["rows"]))
     for label, s in ctx["rows"]:
         if s["n"]:
-            txt.append(f"{label} : note {fnum(s['avg'])}, {s['n']} avis, {round(s['neg'] * 100)} % à 1-2 étoiles")
+            txt.append(f"{label} : moyenne du jour {fnum(s['avg'])}, {s['n']} avis")
 
     blocks.append(h("Problèmes"))
     txt += ["", "PROBLÈMES"]
     if problems:
         for pb in problems:
-            blocks.append(p(f"<b>{e(pb['title'])}</b>", "margin-top:10px"))
+            blocks.append(p(title_html(pb), "margin-top:10px"))
             blocks.append(p(e(_problem_meta(pb)), f"font-size:13px;color:{GREY}"))
             blocks.append(quote(text_of(pb["rs"][0]), meta_of(pb["rs"][0])))
             txt += [f"- {pb['title']} ({_problem_meta(pb)})", f"  « {text_of(pb['rs'][0])} »"]
@@ -279,12 +290,12 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag=""):
              f"{d1.astimezone(tz):%d/%m}), dont {lneg} négatifs")
         if themes:
             t += " : surtout " + ", ".join(f"{THEME_LABELS[k].lower()} ({c})" for k, c in themes)
-        blocks += [h("Avis tardifs"), p(e(t + "."))]
+        blocks += [h("Avis tardifs"), p(emphasize(t + "."))]
         txt += ["", "AVIS TARDIFS", t + "."]
 
     if ctx["best_theme"] and ctx["positives"]:
         k, c = ctx["best_theme"]
-        blocks += [h("Ce qui plaît"), p(f"{e(THEME_LABELS[k])} : {c} avis positifs."),
+        blocks += [h("Ce qui plaît"), p(emphasize(f"{THEME_LABELS[k]} : {c} avis positifs.")),
                    quote(text_of(ctx["positives"][0]), meta_of(ctx["positives"][0]))]
         txt += ["", "CE QUI PLAÎT", f"{THEME_LABELS[k]} : {c} avis positifs.",
                 f"« {text_of(ctx['positives'][0])} »"]
