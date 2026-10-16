@@ -15,6 +15,9 @@ on:
         description: "Ne rien envoyer (l'email est enregistré dans les artefacts)"
         type: boolean
         default: false
+      as_of:
+        description: "Rejeu : date et heure de Paris simulées, ex. 2026-07-05T09:00 (vide = maintenant)"
+        required: false
 
 permissions:
   contents: write
@@ -38,6 +41,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           TO: ${{ inputs.to }}
           DRY: ${{ inputs.dry_run }}
+          AS_OF: ${{ inputs.as_of }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
@@ -49,6 +53,8 @@ jobs:
           [ "$EVENT" = "schedule" ] && args+=(--scheduled)
           [ -n "$TO" ] && args+=(--to "$TO")
           [ "$DRY" = "true" ] && args+=(--dry-run)
+          # Rejeu : données séparées (data-replay) pour ne pas mélanger avec les vraies données
+          [ -n "$AS_OF" ] && args+=(--as-of "$AS_OF" --data-dir data-replay)
           python -m avis_watch.main daily "${args[@]}"
       - uses: actions/upload-artifact@v4
         if: always()
@@ -61,5 +67,5 @@ jobs:
         run: |
           git config user.name "avis-watch"
           git config user.email "avis-watch@users.noreply.github.com"
-          git add data
+          for d in data data-replay; do if [ -d "$d" ]; then git add "$d"; fi; done
           git diff --cached --quiet || (git commit -m "data: mise à jour des avis" && git pull --rebase && git push)

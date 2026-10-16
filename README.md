@@ -34,6 +34,13 @@ python -m avis_watch.main alert --demo --dry-run --no-llm --data-dir .demo-data
 
 Les emails sont écrits dans `out/`.
 
+## Rejeu d'une journée passée (test avec de vraies données)
+
+Dans **Actions → Rapport quotidien → Run workflow**, renseigner `as_of` (ex. `2026-07-05T09:00`) : le rapport est
+calculé comme si on était à cette date (les avis publiés après sont ignorés). Les données de rejeu sont
+stockées à part, dans `data-replay/`. Pour enchaîner deux jours, lancer d'abord le 05/07 puis le 06/07.
+Les logs indiquent, pour chaque pays, combien d'avis ont été retrouvés et jusqu'à quelle date.
+
 ## Limites connues
 
 - Sources publiques : Apple (flux RSS, environ 500 avis récents par pays) et Play Store (par pays et langue).

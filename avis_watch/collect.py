@@ -70,19 +70,31 @@ def _google(app, market, since, max_count=1500):
     return out
 
 
-def collect_all(cfg, since):
+def _note(label, rows):
+    if rows:
+        ds = sorted(r["date"] for r in rows)
+        print(f"{label} : {len(rows)} avis, du {ds[0][:10]} au {ds[-1][:10]}")
+    else:
+        print(f"{label} : 0 avis")
+
+
+def collect_all(cfg, since, max_count=1500):
     """Retourne (avis, erreurs). Une source en échec n'arrête pas les autres."""
     fetched, errors = [], []
     for app in cfg["apps"]:
         for m in cfg["markets"]:
             if app.get("ios_id"):
                 try:
-                    fetched += _apple(app, m["country"], since)
+                    rows = _apple(app, m["country"], since)
+                    _note(f"App Store {m['country'].upper()}", rows)
+                    fetched += rows
                 except Exception as ex:  # noqa: BLE001
                     errors.append(f"App Store {m['country'].upper()} : {type(ex).__name__}")
             if app.get("android_package"):
                 try:
-                    fetched += _google(app, m, since)
+                    rows = _google(app, m, since, max_count)
+                    _note(f"Google Play {m['country'].upper()}", rows)
+                    fetched += rows
                 except Exception as ex:  # noqa: BLE001
                     errors.append(f"Google Play {m['country'].upper()} : {type(ex).__name__}")
     return fetched, errors

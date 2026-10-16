@@ -152,7 +152,7 @@ def summary_lines(cfg, ctx, day, use_llm):
     return lines[:3]
 
 
-def build_daily(cfg, recs, now, day, errors, use_llm, test=False):
+def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag=""):
     ctx = compute(cfg, recs, now, day)
     lines = summary_lines(cfg, ctx, day, use_llm)
     problems, watch, late = ctx["problems"], ctx["watch"], ctx["late"]
@@ -201,8 +201,8 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False):
     blocks.append(p(f"{ctx['n']} avis analysés pour la journée · pays : {markets}",
                     "font-size:12px;color:#5B6270;margin-top:22px"))
 
-    prefix = "[TEST] " if test else ""
-    nb = f"{len(problems)} problème{'s' if len(problems) > 1 else ''}" if problems else "RAS"
+    prefix = f"[TEST{tag}] " if test else ""
+    nb =f"{len(problems)} problème{'s' if len(problems) > 1 else ''}" if problems else "RAS"
     subject = f"{prefix}Veille avis {cfg['name']} · {day:%d/%m} · {nb}" + (" · ⚠ collecte incomplète" if errors else "")
     html = page(f"Veille des avis · {cfg['name']}", f"Activité du {day:%d/%m/%Y}", blocks)
     return subject, html, _to_text(blocks)

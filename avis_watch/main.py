@@ -25,8 +25,11 @@ def _gather(cfg, args, now, days):
         fetched, errors = [], []
     else:
         from . import collect
-        fetched, errors = collect.collect_all(cfg, since=now - timedelta(days=days))
-    new = store.merge(recs, fetched, now.isoformat(), seed)
+        fetched, errors = collect.collect_all(cfg, since=now - timedelta(days=days),
+                                              max_count=6000 if args.as_of else 1500)
+        if args.as_of:  # rejeu : on ignore les avis publiés après la date simulée
+            fetched = [r for r in fetched if datetime.fromisoformat(r["date"]) <= now]
+    new =store.merge(recs, fetched, now.isoformat(), seed)
     n = analyze.classify(cfg, [r for r in recs.values() if "a" not in r], use_llm=not args.no_llm)
     store.save(cfg, recs)
     print(f"{len(new)} nouveaux avis, {n} analysés, {len(recs)} au total, {len(errors)} source(s) en échec")
@@ -44,12 +47,19 @@ def main(argv=None):
     ap.add_argument("--to", default=None, help="destinataire(s) de test, séparés par des virgules")
     ap.add_argument("--scheduled", action="store_true", help="applique la fenêtre d'activité et l'heure d'envoi")
     ap.add_argument("--date", default=None, help="jour du rapport (AAAA-MM-JJ), par défaut hier")
+    ap.add_argument("--as-of", default=None,
+                    help="rejeu : simule la date et l'heure de Paris (ex. 2026-07-05T09:00)")
     args = ap.parse_args(argv)
 
     cfg = config.load(args.config, args.data_dir)
-    now = datetime.now(timezone.utc)
-    local = now.astimezone(ZoneInfo(cfg["timezone"]))
-    test = bool(args.to) or args.demo
+    tz = ZoneInfo(cfg["timezone"])
+    if args.as_of:
+        now = datetime.fromisoformat(args.as_of).replace(tzinfo=tz).astimezone(timezone.utc)
+    else:
+        now = datetime.now(timezone.utc)
+    local = now.astimezone(tz)
+    test = bool(args.to) or args.demo or bool(args.as_of)
+    tag = f" · rejeu du {local:%d/%m}" if args.as_of else ""
 
     if args.scheduled and not _in_window(cfg, local.date()):
         print("Hors de la fenêtre d'activité de l'événement : rien à faire.")
@@ -67,7 +77,7 @@ def main(argv=None):
                 return 0
         recs, errors = _gather(cfg, args, now, cfg["rescan_days"])
         day = date.fromisoformat(args.date) if args.date else local.date() - timedelta(days=1)
-        subject, html, text = report.build_daily(cfg, recs, now, day, errors, not args.no_llm, test)
+        subject, html, text = report.build_daily(cfg, recs, now, day, errors, not args.no_llm, test, tag)
         to = args.to.split(",") if args.to else cfg["report"]["recipients"]
         mailer.send(subject, html, text, to, args.dry_run, "rapport")
         if args.scheduled and not args.dry_run:
