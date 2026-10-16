@@ -6,7 +6,8 @@ INK, GREY, LINE = "#111827", "#6B7280", "#E5E7EB"
 GREEN, RED = "#15803D", "#B91C1C"
 
 COUNTRIES = {"fr": "France", "be": "Belgique", "ch": "Suisse", "lu": "Luxembourg", "es": "Espagne",
-             "it": "Italie", "gb": "Royaume-Uni", "us": "États-Unis", "nl": "Pays-Bas", "de": "Allemagne"}
+             "it": "Italie", "gb": "Royaume-Uni", "us": "États-Unis", "nl": "Pays-Bas", "de": "Allemagne",
+             "pt": "Portugal", "sa": "Arabie saoudite", "ae": "Émirats arabes unis"}
 STORES = {"ios": "App Store", "android": "Google Play"}
 DAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
 MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre",
@@ -14,7 +15,8 @@ MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "ao�
 
 
 LANGS = {"fr": "en français", "en": "en anglais", "es": "en espagnol", "it": "en italien",
-         "nl": "en néerlandais", "de": "en allemand"}
+         "nl": "en néerlandais", "de": "en allemand",
+         "pt": "en portugais", "ar": "en arabe"}
 
 
 def country(c):

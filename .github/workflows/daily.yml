@@ -8,6 +8,10 @@ on:
     - cron: "0 8 * * *"
   workflow_dispatch:
     inputs:
+      event:
+        description: "Événement (nom du fichier dans config/, ex. tour-de-france ou dakar)"
+        required: false
+        default: tour-de-france
       to:
         description: "Destinataire de test (vide = destinataires de la config)"
         required: false
@@ -40,6 +44,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           TO: ${{ inputs.to }}
+          CFG: ${{ inputs.event }}
           DRY: ${{ inputs.dry_run }}
           AS_OF: ${{ inputs.as_of }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -56,7 +61,12 @@ jobs:
           [ "$DRY" = "true" ] && args+=(--dry-run)
           # Rejeu : données séparées (data-replay) pour ne pas mélanger avec les vraies données
           [ -n "$AS_OF" ] && args+=(--as-of "$AS_OF" --data-dir data-replay)
-          python -m avis_watch.main daily "${args[@]}"
+          # Lancement planifié : tous les événements de config/ (chacun respecte sa propre fenêtre d'activité).
+          # Lancement manuel : l'événement choisi.
+          if [ "$EVENT" = "schedule" ]; then files=(config/*.yml); else files=("config/${CFG:-tour-de-france}.yml"); fi
+          for f in "${files[@]}"; do
+            echo "== $f"; python -m avis_watch.main daily --config "$f" "${args[@]}" || echo "échec pour $f"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
