@@ -85,10 +85,10 @@ def compute(cfg, recs, now, day):
         return _stats(pick(day, store), pick(day - timedelta(days=1), store),
                       [len(pick(day - timedelta(days=k), store)) for k in range(1, 8)])
 
-    rows = [("Total", stats_for(None))]
+    rows = [("Total", None, stats_for(None))]
     for store in ("ios", "android"):
         if any(a.get("ios_id" if store == "ios" else "android_package") for a in cfg["apps"]):
-            rows.append((STORES[store], stats_for(store)))
+            rows.append((STORES[store], store, stats_for(store)))
 
     day_recs = by.get(day, [])
     neg = [r for r in day_recs if r["a"]["sentiment"] == "negative" or r["a"]["severity"] >= 3]
@@ -208,10 +208,29 @@ def _arrow(x):
     return "▲ +" if x > 0 else "▼ −"
 
 
-def _cells(s):
-    """Deux cellules (moyenne du jour, avis) avec leur variation colorée."""
+def _global(ratings, key):
+    """Moyenne globale d'un magasin (ou des deux, pondérée par le nombre de notes si key est None)."""
+    if not ratings:
+        return None
+    items = [v for k, v in ratings.items() if key is None or k == key]
+    total = sum(i["count"] for i in items)
+    return sum(i["avg"] * i["count"] for i in items) / total if total else None
+
+
+def _cells(s, g, gp):
+    """Moyenne globale, moyenne du jour, nombre d'avis : chacun avec sa variation colorée."""
+    if g is None:
+        c0, d0 = "—", ""
+    else:
+        c0 = fnum(g, 2)
+        if gp is None:
+            d0 = ""
+        elif abs(g - gp) < 0.005:
+            d0 = delta("=", "flat")
+        else:
+            d0 = delta(f"{_arrow(g - gp)}{fnum(abs(g - gp), 2)}", "good" if g > gp else "bad")
     if not s["n"]:
-        return ("—", "", "0", "")
+        return (c0, d0, "—", "", "0", "")
     if s["d_avg"] is None:
         d1 = delta("–", "flat")
     elif abs(s["d_avg"]) < 0.05:
@@ -224,29 +243,30 @@ def _cells(s):
         d2 = delta("=", "flat")
     else:
         d2 = delta(f"{_arrow(s['vs_base'])}{abs(round(s['vs_base']))} %", "flat")
-    return (fnum(s["avg"]), d1, str(s["n"]), d2)
+    return (c0, d0, fnum(s["avg"]), d1, str(s["n"]), d2)
 
 
-def stats_table(rows):
+def stats_table(rows, ratings, prev):
     def cell(value, d):
-        return (f'<td style="padding:6px 18px 6px 0;white-space:nowrap"><span style="font-size:15px;'
+        return (f'<td style="padding:6px 16px 6px 0;white-space:nowrap"><span style="font-size:15px;'
                 f'font-weight:700">{value}</span> {d}</td>')
 
-    head = "".join(f'<td style="padding:0 18px 4px 0;font-size:12px;color:{GREY}">{t}</td>'
-                   for t in ("", "Moyenne du jour", "Avis"))
+    head = "".join(f'<td style="padding:0 16px 4px 0;font-size:12px;color:{GREY}">{t}</td>'
+                   for t in ("", "Moyenne globale", "Moyenne du jour", "Avis"))
     body = ""
-    for label, s in rows:
-        c = _cells(s)
-        body += (f'<tr style="border-top:1px solid {LINE}"><td style="padding:6px 18px 6px 0;font-size:13px;'
+    for label, key, s in rows:
+        c = _cells(s, _global(ratings, key), _global(prev, key))
+        body += (f'<tr style="border-top:1px solid {LINE}"><td style="padding:6px 16px 6px 0;font-size:13px;'
                  f'font-weight:600;white-space:nowrap">{e(label)}</td>'
-                 f'{cell(c[0], c[1])}{cell(c[2], c[3])}</tr>')
-    legend = (f'<div style="font-size:11px;color:{GREY};margin-top:4px">Variations : moyenne vs la veille, '
-              f'nombre d\'avis vs la moyenne des 7 derniers jours.</div>')
+                 f'{cell(c[0], c[1])}{cell(c[2], c[3])}{cell(c[4], c[5])}</tr>')
+    legend = (f'<div style="font-size:11px;color:{GREY};margin-top:4px">Moyenne globale : toutes les notes du store, '
+              f'variation vs le relevé précédent. Moyenne du jour : vs la veille. Avis : vs la moyenne des '
+              f'7 derniers jours.</div>')
     return (f'<table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;'
             f'margin-top:16px"><tr>{head}</tr>{body}</table>{legend}')
 
 
-def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag=""):
+def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", ratings=None, prev_ratings=None):
     ctx = compute(cfg, recs, now, day)
     describe_problems(cfg, ctx["problems"], use_llm)
     lines = summary_lines(cfg, ctx, day, use_llm)
@@ -255,10 +275,11 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag=""):
     blocks, txt = [], []
     blocks.append('<div style="margin-top:18px">' + "".join(p(emphasize(ln), "font-size:16px") for ln in lines) + "</div>")
     txt += lines + [""]
-    blocks.append(stats_table(ctx["rows"]))
-    for label, s in ctx["rows"]:
-        if s["n"]:
-            txt.append(f"{label} : moyenne du jour {fnum(s['avg'])}, {s['n']} avis")
+    blocks.append(stats_table(ctx["rows"], ratings, prev_ratings))
+    for label, key, s in ctx["rows"]:
+        g = _global(ratings, key)
+        txt.append(f"{label} : moyenne globale {fnum(g, 2) if g else '—'}, "
+                   f"moyenne du jour {fnum(s['avg']) if s['n'] else '—'}, {s['n']} avis")
 
     blocks.append(h("Problèmes"))
     txt += ["", "PROBLÈMES"]

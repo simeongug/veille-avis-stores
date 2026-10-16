@@ -36,6 +36,23 @@ def _gather(cfg, args, now, days):
     return recs, errors
 
 
+def _ratings(cfg, args, local):
+    """Moyenne globale des stores du jour et dernier relevé précédent (pour la variation)."""
+    if args.demo:
+        return {"ios": {"avg": 4.31, "count": 590}, "android": {"avg": 4.12, "count": 17800}}, \
+               {"ios": {"avg": 4.30, "count": 585}, "android": {"avg": 4.13, "count": 17700}}
+    from . import collect
+    ratings = collect.fetch_ratings(cfg) or None
+    hist = store.read_json(cfg, "ratings.json", {})
+    today = str(local.date())
+    earlier = sorted(d for d in hist if d < today)
+    prev = hist[earlier[-1]] if earlier else None
+    if ratings:
+        hist[today] = ratings
+        store.write_json(cfg, "ratings.json", hist)
+    return ratings, prev
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("command", choices=["daily", "alert", "collect"])
@@ -77,7 +94,9 @@ def main(argv=None):
                 return 0
         recs, errors = _gather(cfg, args, now, cfg["rescan_days"])
         day = date.fromisoformat(args.date) if args.date else local.date() - timedelta(days=1)
-        subject, html, text = report.build_daily(cfg, recs, now, day, errors, not args.no_llm, test, tag)
+        ratings, prev = _ratings(cfg, args, local)
+        subject, html, text = report.build_daily(cfg, recs, now, day, errors, not args.no_llm, test, tag,
+                                                 ratings, prev)
         to = args.to.split(",") if args.to else cfg["report"]["recipients"]
         mailer.send(subject, html, text, to, args.dry_run, "rapport")
         if args.scheduled and not args.dry_run:

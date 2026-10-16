@@ -98,3 +98,34 @@ def collect_all(cfg, since, max_count=1500):
                 except Exception as ex:  # noqa: BLE001
                     errors.append(f"Google Play {m['country'].upper()} : {type(ex).__name__}")
     return fetched, errors
+
+
+def fetch_ratings(cfg):
+    """Note moyenne globale par magasin (toutes les notes, pas seulement les avis commentés)."""
+    agg = {}
+
+    def add(store, avg, count):
+        a = agg.setdefault(store, [0.0, 0])
+        a[0] += avg * count
+        a[1] += count
+
+    for app in cfg["apps"]:
+        if app.get("ios_id"):
+            for m in cfg["markets"]:
+                try:
+                    r = requests.get("https://itunes.apple.com/lookup", headers=UA, timeout=30,
+                                     params={"id": app["ios_id"], "country": m["country"]}).json()
+                    res = (r.get("results") or [{}])[0]
+                    if res.get("userRatingCount"):
+                        add("ios", res["averageUserRating"], res["userRatingCount"])
+                except Exception as ex:  # noqa: BLE001
+                    print(f"Note globale App Store {m['country'].upper()} indisponible ({type(ex).__name__})")
+        if app.get("android_package"):
+            try:
+                from google_play_scraper import app as gp_app
+                d = gp_app(app["android_package"], lang=cfg["markets"][0]["lang"], country=cfg["markets"][0]["country"])
+                if d.get("ratings"):
+                    add("android", d["score"], d["ratings"])
+            except Exception as ex:  # noqa: BLE001
+                print(f"Note globale Google Play indisponible ({type(ex).__name__})")
+    return {k: {"avg": v[0] / v[1], "count": v[1]} for k, v in agg.items() if v[1]}
