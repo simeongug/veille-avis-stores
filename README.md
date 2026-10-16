@@ -1,7 +1,7 @@
 # Veille des avis stores
 
-Récupère les avis publics de l'App Store et de Google Play (sans accès propriétaire), les analyse avec Claude
-et envoie :
+Récupère les avis publics de l'App Store et de Google Play (sans accès propriétaire), les analyse (par mots-clés
+et par note, ou avec Claude si une clé API est fournie) et envoie :
 
 - un **email chaque matin à 9 h** (heure de Paris) sur l'activité de la veille ;
 - des **alertes par email** quand un seuil est franchi (volume, note, sujet, gravité).
@@ -15,7 +15,7 @@ Une configuration par événement : `config/tour-de-france.yml` (copier pour le 
 
    | Secret | Contenu |
    |---|---|
-   | `ANTHROPIC_API_KEY` | clé API Claude |
+   | `ANTHROPIC_API_KEY` | **facultatif** : clé API Claude (payante). Sans elle, l'analyse se fait par mots-clés et par note, gratuitement |
    | `SMTP_HOST`, `SMTP_PORT` | serveur d'envoi (ex. `smtp.gmail.com`, `587`) |
    | `SMTP_USER`, `SMTP_PASSWORD` | identifiants de la boîte d'envoi (mot de passe d'application) |
    | `MAIL_FROM` | adresse expéditrice (optionnel, sinon `SMTP_USER`) |
@@ -40,3 +40,8 @@ Les emails sont écrits dans `out/`.
   Une source qui ne répond pas est signalée en bas de l'email plutôt que passée sous silence.
 - Les avis n'apparaissent pas toujours immédiatement dans les stores : d'où la revérification quotidienne.
 - Les notes sans commentaire ne sont pas visibles dans les flux publics.
+
+## Coût
+
+Gratuit avec : GitHub Actions (dépôt privé : 2 000 minutes par mois offertes), une adresse Gmail dédiée,
+les flux publics des stores. Seule l'analyse par Claude (clé API) est payante, et elle est facultative.
