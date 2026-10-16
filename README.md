@@ -15,7 +15,8 @@ Une configuration par événement : `config/tour-de-france.yml` (copier pour le 
 
    | Secret | Contenu |
    |---|---|
-   | `ANTHROPIC_API_KEY` | **facultatif** : clé API Claude (payante). Sans elle, l'analyse se fait par mots-clés et par note, gratuitement |
+   | `GEMINI_API_KEY` | **facultatif, gratuit** : clé Google AI Studio (`aistudio.google.com/apikey`). Meilleure analyse : thèmes, traduction, titres des problèmes, résumé |
+| `ANTHROPIC_API_KEY` | **facultatif** : clé API Claude (payante). Utilisée seulement si `GEMINI_API_KEY` est absente. Sans aucune des deux clés, l'analyse se fait par mots-clés et par note |
    | `SMTP_HOST`, `SMTP_PORT` | serveur d'envoi (ex. `smtp.gmail.com`, `587`) |
    | `SMTP_USER`, `SMTP_PASSWORD` | identifiants de la boîte d'envoi (mot de passe d'application) |
    | `MAIL_FROM` | adresse expéditrice (optionnel, sinon `SMTP_USER`) |
@@ -51,4 +52,4 @@ Les logs indiquent, pour chaque pays, combien d'avis ont été retrouvés et jus
 ## Coût
 
 Gratuit avec : GitHub Actions (dépôt privé : 2 000 minutes par mois offertes), une adresse Gmail dédiée,
-les flux publics des stores. Seule l'analyse par Claude (clé API) est payante, et elle est facultative.
+les flux publics des stores. L'analyse par IA est gratuite avec Gemini (niveau gratuit, limites variables selon Google) ; Claude (clé API) est payant et facultatif.

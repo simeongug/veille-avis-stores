@@ -48,6 +48,11 @@ alerts:
   theme_min: 8            # alerte si N avis négatifs sur le même sujet dans la fenêtre longue
   cooldown_minutes: 180   # pas de renvoi de la même alerte avant ce délai
 
+# IA : Gemini (niveau gratuit) si le secret GEMINI_API_KEY existe, sinon Claude si ANTHROPIC_API_KEY existe,
+# sinon analyse par mots-clés. Les noms de modèles sont à vérifier dans Google AI Studio.
+llm:
+  min_interval_s: 6       # pause entre deux appels (limites du niveau gratuit)
+  recent_days: 3          # seuls les avis des N derniers jours passent par l'IA
 models:
-  classify: claude-haiku-5-5
-  summary: claude-sonnet-5-5
+  gemini: {classify: gemini-3.5-flash-lite, summary: gemini-3.6-flash}
+  claude: {classify: claude-haiku-5-5, summary: claude-sonnet-5-5}

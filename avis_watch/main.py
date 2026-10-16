@@ -30,7 +30,7 @@ def _gather(cfg, args, now, days):
         if args.as_of:  # rejeu : on ignore les avis publiés après la date simulée
             fetched = [r for r in fetched if datetime.fromisoformat(r["date"]) <= now]
     new =store.merge(recs, fetched, now.isoformat(), seed)
-    n = analyze.classify(cfg, [r for r in recs.values() if "a" not in r], use_llm=not args.no_llm)
+    n = analyze.classify(cfg, [r for r in recs.values() if "a" not in r], use_llm=not args.no_llm, now=now)
     store.save(cfg, recs)
     print(f"{len(new)} nouveaux avis, {n} analysés, {len(recs)} au total, {len(errors)} source(s) en échec")
     return recs, errors

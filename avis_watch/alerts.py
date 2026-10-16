@@ -3,7 +3,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 
 from . import store
-from .render import STORES, country, e, fnum, h, p, page, quote
+from .render import RED, STORES, country, e, fnum, h, p, page, quote
 from .report import THEME_LABELS, _to_text, dt, focus, meta_of, text_of
 
 
@@ -93,5 +93,5 @@ def build(cfg, alerts, now, test=False):
     prefix = "[TEST] " if test else ""
     extra = f" (+{len(alerts) - 1} seuil{'s' if len(alerts) > 2 else ''})" if len(alerts) > 1 else ""
     subject = f"{prefix}Alerte {cfg['name']} · {alerts[0]['title']}{extra}"
-    html = page(f"Alerte · {cfg['name']}", f"{now.astimezone(tz):%d/%m/%Y à %H:%M}", blocks, accent="#B42318")
+    html = page(f"Alerte · {cfg['name']}", f"{now.astimezone(tz):%d/%m/%Y à %H:%M}", blocks, dot=RED)
     return subject, html, _to_text(blocks)

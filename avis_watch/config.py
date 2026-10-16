@@ -13,7 +13,11 @@ DEFAULTS = {
         "rating_below": 3.0, "rating_min_reviews": 8, "rating_window_hours": 3,
         "theme_min": 8, "cooldown_minutes": 180,
     },
-    "models": {"classify": "claude-haiku-5-5", "summary": "claude-sonnet-5-5"},
+    "llm": {"min_interval_s": 6, "recent_days": 3},
+    "models": {
+        "gemini": {"classify": "gemini-3.5-flash-lite", "summary": "gemini-3.6-flash"},
+        "claude": {"classify": "claude-haiku-5-5", "summary": "claude-sonnet-5-5"},
+    },
 }
 
 
