@@ -27,6 +27,13 @@ def _gather(cfg, args, now, days):
         from . import collect
         since = now - timedelta(days=days)
         fetched, errors = collect.collect_all(cfg, since=since, max_count=6000 if args.as_of else 1500)
+        if args.as_of:  # rejeu : les flux ne donnent que les avis les plus récents, l'historique peut ne pas remonter assez
+            from .render import STORES
+            for st, name in STORES.items():
+                dates = [datetime.fromisoformat(r["date"]) for r in fetched if r["store"] == st]
+                if dates and min(dates) > since:
+                    errors.append(f"{name} : l'historique public ne remonte qu'au "
+                                  f"{min(dates).astimezone(ZoneInfo(cfg['timezone'])):%d/%m/%Y}, des avis plus anciens sont introuvables")
         fetched = [r for r in fetched if datetime.fromisoformat(r["date"]) >= since]
         if args.as_of:  # rejeu : on ignore les avis publiés après la date simulée
             fetched = [r for r in fetched if datetime.fromisoformat(r["date"]) <= now]
