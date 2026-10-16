@@ -47,7 +47,7 @@ def page(title, subtitle, blocks, dot=None):
     return (
         '<!doctype html><html lang="fr"><body style="margin:0;padding:24px 12px;background:#FFFFFF">'
         f'<div style="max-width:560px;margin:0 auto;font-family:{FONT};color:{INK};font-size:15px;line-height:1.5">'
-        f'<div style="font-size:22px;font-weight:700">{mark}{e(title)}</div>'
+        f'<div style="font-size:22px;font-weight:500">{mark}{e(title)}</div>'
         f'<div style="font-size:13px;color:{GREY};margin-top:2px">{e(subtitle)}</div>'
         f'{"".join(blocks)}</div></body></html>'
     )

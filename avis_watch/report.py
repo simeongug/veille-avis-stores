@@ -2,7 +2,7 @@
 import json
 import re
 from collections import Counter, defaultdict
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from html import escape as e
 from html import unescape
 from zoneinfo import ZoneInfo
@@ -150,6 +150,17 @@ def compute(cfg, recs, now, day):
                        key=lambda r: -len(r["text"]))
     return {"rows": rows, "problems": problems, "ideas": ideas, "unidentified": unidentified, "kinds": kinds, "watch": watch, "late": late, "n": n_all,
             "positives": positives, "best_theme": best_theme[0] if best_theme else None}
+
+
+def stage_of(cfg, day):
+    """Étape (ou jour de repos) correspondant à un jour, d'après le calendrier de la config."""
+    for st in cfg.get("stages") or []:
+        d = st["date"] if isinstance(st["date"], date) else date.fromisoformat(str(st["date"]))
+        if d == day:
+            if st.get("rest"):
+                return {"title": "Jour de repos", "route": st["rest"]}
+            return {"title": f"Étape {st['stage']}", "route": st.get("route", "")}
+    return None
 
 
 def _problem_meta(pb):
@@ -381,8 +392,12 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
     prefix = f"[TEST{tag}] " if test else ""
     nb = f"{len(problems)} problème{'s' if len(problems) > 1 else ''}" if problems else "RAS"
     flag = "⚠ Anomalie · " if anoms else ""
-    subject = f"{prefix}{flag}Avis {cfg['name']} · {day:%d/%m} · {nb}" + (" · ⚠ collecte incomplète" if errors else "")
-    html = page(cfg["name"], f"Avis du {long_date(day)} · App Store et Google Play", blocks)
+    stage_txt = f" · {stage_of(cfg, day)['title']}" if stage_of(cfg, day) else ""
+    subject = f"{prefix}{flag}Avis {cfg['name']}{stage_txt} · {day:%d/%m} · {nb}" + (" · ⚠ collecte incomplète" if errors else "")
+    st = stage_of(cfg, day)
+    title = f"{cfg['name']} · {st['title']}" if st else cfg["name"]
+    sub = (f"{st['route']} · " if st and st["route"] else "") + f"avis du {long_date(day)}"
+    html = page(title, sub[:1].upper() + sub[1:], blocks)
     return subject, html, "\n".join(txt).strip()
 
 

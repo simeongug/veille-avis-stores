@@ -11,6 +11,33 @@ timezone: Europe/Paris
 active_from:
 active_to:
 
+# Calendrier des étapes : sert à préciser l'étape dans le titre de l'email (le rapport porte sur la veille).
+# Source : programme officiel publié (à vérifier). Pour un autre événement, remplacer cette liste.
+stages:
+  - {date: 2026-07-04, stage: 1, route: "Barcelone → Barcelone (contre-la-montre par équipes)"}
+  - {date: 2026-07-05, stage: 2, route: "Tarragone → Barcelone"}
+  - {date: 2026-07-06, stage: 3, route: "Granollers → Les Angles"}
+  - {date: 2026-07-07, stage: 4, route: "Carcassonne → Foix"}
+  - {date: 2026-07-08, stage: 5, route: "Lannemezan → Pau"}
+  - {date: 2026-07-09, stage: 6, route: "Pau → Gavarnie-Gèdre"}
+  - {date: 2026-07-10, stage: 7, route: "Hagetmau → Bordeaux"}
+  - {date: 2026-07-11, stage: 8, route: "Périgueux → Bergerac"}
+  - {date: 2026-07-12, stage: 9, route: "Malemort → Ussel"}
+  - {date: 2026-07-13, rest: "Cantal"}
+  - {date: 2026-07-14, stage: 10, route: "Aurillac → Le Lioran"}
+  - {date: 2026-07-15, stage: 11, route: "Vichy → Nevers"}
+  - {date: 2026-07-16, stage: 12, route: "Magny-Cours → Chalon-sur-Saône"}
+  - {date: 2026-07-17, stage: 13, route: "Dole → Belfort"}
+  - {date: 2026-07-18, stage: 14, route: "Mulhouse → Le Markstein Fellering"}
+  - {date: 2026-07-19, stage: 15, route: "Champagnole → Plateau de Solaison"}
+  - {date: 2026-07-20, rest: "Haute-Savoie"}
+  - {date: 2026-07-21, stage: 16, route: "Évian-les-Bains → Thonon-les-Bains (contre-la-montre individuel)"}
+  - {date: 2026-07-22, stage: 17, route: "Chambéry → Voiron"}
+  - {date: 2026-07-23, stage: 18, route: "Voiron → Orcières-Merlette"}
+  - {date: 2026-07-24, stage: 19, route: "Gap → Alpe d'Huez"}
+  - {date: 2026-07-25, stage: 20, route: "Le Bourg-d'Oisans → Alpe d'Huez"}
+  - {date: 2026-07-26, stage: 21, route: "Thoiry → Paris (Champs-Élysées)"}
+
 apps:
   - name: Tour de France
     ios_id: "1528742741"
