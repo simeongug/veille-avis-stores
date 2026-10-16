@@ -1,0 +1,53 @@
+# Configuration de l'événement : Tour de France
+# Pour un autre événement (Dakar, Vuelta), copier ce fichier et changer les valeurs.
+
+event: tour-de-france
+name: Tour de France
+timezone: Europe/Paris
+
+# Fenêtre d'activité des envois PLANIFIÉS (rapport de 9 h et alertes).
+# Laisser vide = aucun envoi planifié, seuls les lancements manuels fonctionnent.
+# Exemple : active_from: 2027-07-02 / active_to: 2027-07-26
+active_from:
+active_to:
+
+apps:
+  - name: Tour de France
+    ios_id: "1528742741"
+    android_package: com.aso.tdf2012int
+
+# Pays surveillés (un magasin par pays). La langue sert au Play Store.
+markets:
+  - {country: fr, lang: fr}
+  - {country: be, lang: fr}
+  - {country: ch, lang: fr}
+  - {country: es, lang: es}
+  - {country: it, lang: it}
+  - {country: gb, lang: en}
+  - {country: us, lang: en}
+  - {country: nl, lang: nl}
+  - {country: de, lang: de}
+
+# Chaque matin, on repasse sur les N derniers jours pour rattraper les avis arrivés en retard.
+rescan_days: 14
+
+themes: [carte, direct, classement, notifications, connexion, publicité, bug, contenu, autre]
+
+report:
+  recipients: [sguglielmetti@aso.fr]
+  min_problem: 3          # nb d'avis négatifs sur un même sujet pour le signaler
+
+alerts:
+  recipients: [sguglielmetti@aso.fr]
+  window_minutes: 60      # fenêtre de comptage des nouveaux avis
+  volume_min: 15          # alerte si au moins N nouveaux avis dans la fenêtre...
+  volume_factor: 4        # ...ET au moins N fois le rythme habituel
+  rating_below: 3.0       # alerte si la note moyenne récente passe sous ce seuil
+  rating_min_reviews: 8
+  rating_window_hours: 3
+  theme_min: 8            # alerte si N avis négatifs sur le même sujet dans la fenêtre longue
+  cooldown_minutes: 180   # pas de renvoi de la même alerte avant ce délai
+
+models:
+  classify: claude-haiku-5-5
+  summary: claude-sonnet-5-5

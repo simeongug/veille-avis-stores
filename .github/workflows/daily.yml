@@ -1,0 +1,65 @@
+name: Rapport quotidien
+
+on:
+  schedule:
+    # 07:00 et 08:00 UTC : le script n'envoie qu'à partir de 9 h heure de Paris (été comme hiver),
+    # une seule fois par jour, et seulement dans la fenêtre d'activité de l'événement.
+    - cron: "0 7 * * *"
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+    inputs:
+      to:
+        description: "Destinataire de test (vide = destinataires de la config)"
+        required: false
+      dry_run:
+        description: "Ne rien envoyer (l'email est enregistré dans les artefacts)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: avis-data
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Rapport
+        env:
+          EVENT: ${{ github.event_name }}
+          TO: ${{ inputs.to }}
+          DRY: ${{ inputs.dry_run }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+        run: |
+          args=()
+          [ "$EVENT" = "schedule" ] && args+=(--scheduled)
+          [ -n "$TO" ] && args+=(--to "$TO")
+          [ "$DRY" = "true" ] && args+=(--dry-run)
+          python -m avis_watch.main daily "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emails
+          path: out/
+          if-no-files-found: ignore
+      - name: Sauvegarder les avis collectés
+        if: always()
+        run: |
+          git config user.name "avis-watch"
+          git config user.email "avis-watch@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || (git commit -m "data: mise à jour des avis" && git pull --rebase && git push)
