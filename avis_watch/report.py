@@ -16,6 +16,10 @@ THEME_LABELS = {"carte": "Carte et tracé", "direct": "Direct et vidéo", "class
                 "bug": "Plantages et lenteurs", "contenu": "Contenu", "autre": "Autres sujets"}
 
 
+# Un thème comme « Plantages et lenteurs » ou « Publicité » ne peut pas être un point positif.
+POSITIVE_THEMES = ("carte", "direct", "classement", "notifications", "connexion")
+
+
 def dt(iso):
     return datetime.fromisoformat(iso)
 
@@ -140,7 +144,7 @@ def compute(cfg, recs, now, day):
     late = [r for r in recs.values()
             if dt(r["date"]) < start and dt(r["first_seen"]) >= now - timedelta(hours=24)]
 
-    pos = [r for r in day_recs if r["a"]["sentiment"] == "positive" and r["a"]["theme"] != "autre"]
+    pos = [r for r in day_recs if r["a"]["sentiment"] == "positive" and r["a"]["theme"] in POSITIVE_THEMES]
     best_theme = Counter(r["a"]["theme"] for r in pos).most_common(1)
     positives = sorted([r for r in day_recs if r["rating"] == 5 and 25 <= len(r.get("text", "")) <= 200],
                        key=lambda r: -len(r["text"]))
@@ -177,45 +181,30 @@ def describe_problems(cfg, problems, use_llm):
         analyze.note_error("Titres des problèmes", ex)
 
 
-def summary_lines(cfg, ctx, day, use_llm):
-    problems, watch = ctx["problems"], ctx["watch"]
-    facts = {
-        "evenement": cfg["name"], "jour": str(day),
-        "problemes": [{"titre": x["title"], "details": _problem_meta(x)} for x in problems],
-        "pays_a_surveiller": [{"pays": country(w["country"]), "part_negatifs": round(w["rate"], 2),
-                               "avis": w["n"]} for w in watch],
-        "avis_tardifs": len(ctx["late"]),
-        "point_positif": THEME_LABELS[ctx["best_theme"][0]] if ctx["best_theme"] else None,
-    }
+def summary_lines(cfg, ctx, day, use_llm, has_anomaly=False):
+    """Accroche : un verdict court. Le détail (chiffres, problèmes, pays, avis) est affiché plus bas, et
+    l'anomalie a déjà son encadré : on ne les répète pas."""
+    if has_anomaly:
+        return []
+    problems, kc = ctx["problems"], ctx["kinds"]
     if use_llm and analyze.llm_available():
+        facts = {"evenement": cfg["name"], "jour": str(day), "avis_negatifs": kc,
+                 "sujets_critiques": [x["title"] for x in problems[:3]]}
         try:
             out = analyze.llm_text(
                 cfg, "summary",
-                "Tu rédiges les 2 ou 3 lignes « À retenir » d'un email quotidien pour une équipe produit. "
-                "Français, phrases courtes et concrètes, la plus importante d'abord, sans jargon, sans guillemets ni gras. "
-                "Utilise uniquement les faits fournis, n'invente aucun chiffre. Une phrase par ligne, "
-                "sans puces ni titre.", json.dumps(facts, ensure_ascii=False), max_tokens=500)
+                "Tu rédiges l'accroche d'un email quotidien pour une équipe produit : une ou deux phrases courtes "
+                "au maximum, en français, qui donnent le verdict de la journée. Les chiffres, les problèmes, les pays "
+                "et les avis sont affichés juste en dessous : ne les répète pas. N'invente rien. Pas de puces, "
+                "pas de titre.", json.dumps(facts, ensure_ascii=False), max_tokens=300)
             lines = [ln.replace("**", "").strip("-•* ").strip() for ln in out.splitlines() if ln.strip()]
             if lines:
-                return lines[:3]
+                return lines[:2]
         except Exception as ex:  # noqa: BLE001
             analyze.note_error("Résumé IA", ex)
-    lines = []
     if problems:
-        top = problems[0]
-        lines.append(f"{top['title']} : {_problem_meta(top)}.")
-        if len(problems) > 1:
-            lines.append(f"{len(problems) - 1} autre{'s' if len(problems) > 2 else ''} sujet"
-                         f"{'s' if len(problems) > 2 else ''} à suivre : "
-                         + ", ".join(x["title"].lower() for x in problems[1:3]) + ".")
-    else:
-        lines.append("Aucun problème notable ce jour-là.")
-    if watch:
-        w = watch[0]
-        lines.append(f"{cap(country(w['country']))} à surveiller : {round(w['rate'] * 100)} % d'avis négatifs.")
-    elif ctx["best_theme"]:
-        lines.append(f"Ce qui plaît : {THEME_LABELS[ctx['best_theme'][0]].lower()}.")
-    return lines[:3]
+        return [f"Journée à surveiller : {problems[0]['title']}."]
+    return ["Journée calme : aucun problème critique."]
 
 
 def _arrow(x):
@@ -283,11 +272,11 @@ def stats_table(rows, ratings, prev):
 def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", ratings=None, prev_ratings=None):
     ctx = compute(cfg, recs, now, day)
     describe_problems(cfg, ctx["problems"] + ctx["ideas"], use_llm)
-    lines = summary_lines(cfg, ctx, day, use_llm)
+    anoms = anomalies.detect(cfg, recs, day, THEME_LABELS)
+    lines = summary_lines(cfg, ctx, day, use_llm, bool(anoms))
     problems, ideas, watch, late = ctx["problems"], ctx["ideas"], ctx["watch"], ctx["late"]
 
     blocks, txt = [], []
-    anoms = anomalies.detect(cfg, recs, day, THEME_LABELS)
     if anoms:
         level = "forte" if any(x["level"] == "forte" for x in anoms) else "modérée"
         inner = f'<div style="font-weight:700;color:{RED}">● Anomalie détectée · {level}</div>'
@@ -301,8 +290,10 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
         blocks.append(f'<div style="margin-top:18px;padding:12px 14px;background:#FEF2F2;border-radius:6px">'
                       f'{inner}</div>')
         txt.append("")
-    blocks.append('<div style="margin-top:18px">' + "".join(p(emphasize(ln), "font-size:16px") for ln in lines) + "</div>")
-    txt += lines + [""]
+    if lines:
+        blocks.append('<div style="margin-top:18px">' + "".join(p(emphasize(ln), "font-size:16px") for ln in lines)
+                      + "</div>")
+        txt += lines + [""]
     blocks.append(stats_table(ctx["rows"], ratings, prev_ratings))
     for label, key, s in ctx["rows"]:
         g = _global(ratings, key)

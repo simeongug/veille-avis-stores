@@ -86,7 +86,7 @@ def detect(cfg, recs, day, theme_labels):
                     sig.append(f"{theme_labels[theme]} : {c} avis négatifs, {round(c / max(b, 0.5))} fois la normale")
                     kinds.append("sujet")
 
-        rep = Counter(_norm(r.get("text", "")) for r in cur if len(r.get("text", "")) >= 25)
+        rep = Counter(_norm(r.get("text", "")) for r in cur if len(r.get("text", "")) >= 25 and r["rating"] <= 2)
         for text, c in rep.most_common(1):
             if c >= 3:
                 sig.append(f"{c} avis identiques mot pour mot (« {text[:60]}… »), possible campagne")
