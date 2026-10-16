@@ -18,7 +18,8 @@ DEFAULTS = {
                 "version_share": 0.7, "theme_min": 5, "theme_factor": 3, "silence_base_min": 8},
     "llm": {"min_interval_s": 6, "recent_days": 3},
     "models": {
-        "gemini": {"classify": "gemini-3.5-flash-lite", "summary": "gemini-3.6-flash"},
+        "gemini": {"classify": "gemini-3.5-flash-lite", "summary": "gemini-3.6-flash",
+                   "fallbacks": ["gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash"]},
         "claude": {"classify": "claude-haiku-5-5", "summary": "claude-sonnet-5-5"},
     },
 }

@@ -174,7 +174,7 @@ def describe_problems(cfg, problems, use_llm):
         for row in analyze.parse_json_array(out):
             problems[int(row["i"]) - 1]["title"] = str(row["titre"]).strip()[:110]
     except Exception as ex:  # noqa: BLE001
-        print(f"Titres des problèmes en échec ({type(ex).__name__} : {str(ex)[:120]}), libellés standard")
+        analyze.note_error("Titres des problèmes", ex)
 
 
 def summary_lines(cfg, ctx, day, use_llm):
@@ -199,7 +199,7 @@ def summary_lines(cfg, ctx, day, use_llm):
             if lines:
                 return lines[:3]
         except Exception as ex:  # noqa: BLE001
-            print(f"Résumé IA en échec ({type(ex).__name__} : {str(ex)[:120]}), résumé standard")
+            analyze.note_error("Résumé IA", ex)
     lines = []
     if problems:
         top = problems[0]
@@ -380,6 +380,8 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
 
     foot = f"{ctx['n']} avis analysés · {', '.join(m['country'].upper() for m in cfg['markets'])}"
     blocks.append(p(e(foot), f"font-size:12px;color:{GREY};margin-top:26px"))
+    blocks.append(p(e(analyze.status_line()), f"font-size:12px;color:{GREY}"))
+    txt += ["", analyze.status_line()]
     if errors:
         warn = "Collecte incomplète : " + "; ".join(errors[:6])
         blocks.append(p("⚠ " + e(warn), "font-size:12px;color:#B91C1C"))

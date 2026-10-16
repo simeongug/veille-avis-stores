@@ -66,5 +66,8 @@ llm:
   min_interval_s: 6       # pause entre deux appels (limites du niveau gratuit)
   recent_days: 3          # seuls les avis des N derniers jours passent par l'IA
 models:
-  gemini: {classify: gemini-3.5-flash-lite, summary: gemini-3.6-flash}
+  gemini:
+    classify: gemini-3.5-flash-lite
+    summary: gemini-3.6-flash
+    fallbacks: [gemini-3.1-flash-lite, gemini-3.8-flash, gemini-3.6-flash]   # essayés si un modèle est inconnu
   claude: {classify: claude-haiku-5-5, summary: claude-sonnet-5-5}

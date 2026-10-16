@@ -26,6 +26,27 @@ IDEA = (r"j.aimerais|il faudrait|ajouter|ajoutez|manque|suggestion|pourrait|pour
         r"falta|sería|wäre|vorschlag|souhait")
 
 _last_call = [0.0]
+STATUS = {"provider": None, "errors": [], "smart": 0, "ok": 0}
+
+
+def note_error(where, ex):
+    msg = f"{type(ex).__name__} : {str(ex)[:140]}"
+    print(f"{where} en échec ({msg})")
+    if msg not in STATUS["errors"]:
+        STATUS["errors"].append(msg)
+
+
+def status_line():
+    """Phrase affichée en bas de l'email : quelle analyse a réellement été utilisée."""
+    prov = {"gemini": "Gemini", "claude": "Claude"}.get(STATUS["provider"])
+    if not prov:
+        return "Analyse : mots-clés et notes (aucune clé IA détectée par le workflow)."
+    if STATUS["errors"]:
+        return f"Analyse : mots-clés et notes ({prov} indisponible : {STATUS['errors'][0]})."
+    if not STATUS["smart"]:
+        return f"Analyse : {prov} actif, aucun nouvel avis à analyser."
+    return f"Analyse par {prov} ({STATUS['ok']} avis)."
+
 
 
 def provider():
@@ -81,7 +102,15 @@ def llm_text(cfg, role, system, user, max_tokens=1500, json_mode=False):
     _throttle(cfg)
     model = cfg["models"][prov][role]
     if prov == "gemini":
-        return _gemini(model, system, user, max_tokens, json_mode)
+        last = None
+        for m in [model] + [x for x in cfg["models"]["gemini"].get("fallbacks", []) if x != model]:
+            try:
+                return _gemini(m, system, user, max_tokens, json_mode)
+            except RuntimeError as ex:
+                last = ex
+                if "HTTP 404" not in str(ex):  # modèle inconnu : on essaie le suivant ; autre erreur : on s'arrête
+                    raise
+        raise last
     return _claude(model, system, user, max_tokens)
 
 
@@ -150,6 +179,7 @@ def classify(cfg, recs, use_llm=True, now=None):
     qu'aux moyennes, est classé par mots-clés pour rester dans les limites du niveau gratuit."""
     todo = [r for r in recs if "a" not in r]
     llm = use_llm and llm_available()
+    STATUS["provider"] = provider() if llm else None
     limit = timedelta(days=cfg.get("llm", {}).get("recent_days", 3))
     smart = [r for r in todo if llm and now and now - datetime.fromisoformat(r["first_seen"]) <= limit]
     for i in range(0, len(smart), 50):
@@ -157,11 +187,13 @@ def classify(cfg, recs, use_llm=True, now=None):
         try:
             res = _llm_batch(cfg, batch)
         except Exception as ex:  # noqa: BLE001
-            print(f"Analyse IA en échec ({type(ex).__name__} : {str(ex)[:160]}), repli par mots-clés")
+            note_error("Analyse IA", ex)
             res = {}
         for r in batch:
             if r["id"] in res:
                 r["a"] = res[r["id"]]
+                STATUS["ok"] += 1
+    STATUS["smart"] = len(smart)
     for r in todo:
         if "a" not in r:
             r["a"] = heuristic(r)
