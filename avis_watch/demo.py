@@ -14,6 +14,8 @@ TEXTS = {
                  "Desde la actualización el mapa se queda en blanco."],
     "notif": ["Chaque notification arrive en double, c'est pénible pendant les étapes.",
               "Les notifications arrivent en anglais et en double."],
+    "idee": ["Il faudrait pouvoir choisir les équipes suivies pour les notifications.",
+             "J'aimerais voir le profil de l'étape avec la position des coureurs."],
     "carte_fr": ["La carte ne charge pas au moment du sprint, écran blanc."],
 }
 
@@ -49,6 +51,8 @@ def populate(cfg, recs, now, seed=7):
         add(day, rnd.randint(16, 18), "android", "es", rnd.choice([1, 1, 2]), rnd.choice(TEXTS["carte_es"]))
     for _ in range(7):   # hier : notifications sur iOS en France
         add(day, rnd.randint(9, 20), "ios", "fr", rnd.choice([1, 2]), rnd.choice(TEXTS["notif"]))
+    for _ in range(5):   # hier : demandes d'amélioration
+        add(day, rnd.randint(9, 20), rnd.choice(["ios", "android"]), "fr", 2, rnd.choice(TEXTS["idee"]))
     for _ in range(6):   # avis tardifs arrivés ce matin
         add(day - timedelta(days=rnd.randint(1, 3)), rnd.randint(10, 20), "android", "fr", rnd.choice([1, 2]),
             rnd.choice(TEXTS["carte_fr"]), first_seen=now - timedelta(hours=3))

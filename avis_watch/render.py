@@ -13,8 +13,19 @@ MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "ao�
           "octobre", "novembre", "décembre"]
 
 
+LANGS = {"fr": "en français", "en": "en anglais", "es": "en espagnol", "it": "en italien",
+         "nl": "en néerlandais", "de": "en allemand"}
+
+
 def country(c):
+    """Pays (App Store) ou langue (Google Play, codée « lang:xx »)."""
+    if c.startswith("lang:"):
+        return "avis " + LANGS.get(c[5:], c[5:])
     return COUNTRIES.get(c, c.upper())
+
+
+def cap(t):
+    return t[:1].upper() + t[1:]
 
 
 def fnum(x, d=1):

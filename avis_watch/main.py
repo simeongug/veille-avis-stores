@@ -25,8 +25,9 @@ def _gather(cfg, args, now, days):
         fetched, errors = [], []
     else:
         from . import collect
-        fetched, errors = collect.collect_all(cfg, since=now - timedelta(days=days),
-                                              max_count=6000 if args.as_of else 1500)
+        since = now - timedelta(days=days)
+        fetched, errors = collect.collect_all(cfg, since=since, max_count=6000 if args.as_of else 1500)
+        fetched = [r for r in fetched if datetime.fromisoformat(r["date"]) >= since]
         if args.as_of:  # rejeu : on ignore les avis publiés après la date simulée
             fetched = [r for r in fetched if datetime.fromisoformat(r["date"]) <= now]
     new =store.merge(recs, fetched, now.isoformat(), seed)

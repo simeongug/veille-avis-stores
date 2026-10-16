@@ -2,7 +2,7 @@
 from collections import Counter
 from datetime import datetime, timedelta
 
-from . import store
+from . import anomalies, store
 from .render import RED, STORES, country, e, fnum, h, p, page, quote
 from .report import THEME_LABELS, _to_text, dt, focus, meta_of, text_of
 
@@ -30,7 +30,8 @@ def check(cfg, recs, now):
         if len(arrivals) >= a["volume_min"] and len(arrivals) >= a["volume_factor"] * base:
             out.append({"key": f"{app['name']}:volume", "title": f"{len(arrivals)} nouveaux avis en {a['window_minutes']} min",
                         "lines": [f"{fnum(len(arrivals) / base)}× le rythme habituel (environ {fnum(base, 0)} par période).",
-                                  f"Dont {len(negs)} négatifs. Pays : {_where(arrivals)}."],
+                                  f"Dont {len(negs)} négatifs. Pays : {_where(arrivals)}."]
+                                 + ([f"Concentré sur la {anomalies.version_focus(negs)}."] if anomalies.version_focus(negs) else []),
                         "examples": sorted(negs, key=lambda r: -len(r.get("text", "")))[:3]})
 
         if len(longer) >= a["rating_min_reviews"]:

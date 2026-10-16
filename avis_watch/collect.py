@@ -44,12 +44,13 @@ def _apple(app, country, since, max_pages=10):
     return out
 
 
-def _google(app, market, since, max_count=1500):
+def _google(app, lang, country, since, max_count=1500):
+    """Les avis Google Play dépendent de la langue, pas du pays : un avis est le même quel que soit le pays
+    interrogé. On interroge donc une fois par langue, et le « lieu » d'un avis Android est sa langue."""
     from google_play_scraper import Sort, reviews
     out, token = [], None
     while len(out) < max_count:
-        batch, token = reviews(app["android_package"], lang=market["lang"],
-                               country=market["country"], sort=Sort.NEWEST,
+        batch, token = reviews(app["android_package"], lang=lang, country=country, sort=Sort.NEWEST,
                                count=100, continuation_token=token)
         if not batch:
             break
@@ -58,9 +59,9 @@ def _google(app, market, since, max_count=1500):
             d = e["at"].replace(tzinfo=timezone.utc) if e["at"].tzinfo is None else e["at"]
             oldest = d if oldest is None or d < oldest else oldest
             out.append({
-                "id": f"android:{market['country']}:{e['reviewId']}",
-                "app": app["name"], "store": "android", "country": market["country"],
-                "lang": market["lang"], "rating": int(e["score"]), "title": "",
+                "id": f"android:{e['reviewId']}",
+                "app": app["name"], "store": "android", "country": f"lang:{lang}",
+                "lang": lang, "rating": int(e["score"]), "title": "",
                 "text": e.get("content") or "", "date": d.astimezone(timezone.utc).isoformat(),
                 "version": e.get("appVersion") or "", "thumbs": int(e.get("thumbsUpCount") or 0),
             })
@@ -81,22 +82,26 @@ def _note(label, rows):
 def collect_all(cfg, since, max_count=1500):
     """Retourne (avis, erreurs). Une source en échec n'arrête pas les autres."""
     fetched, errors = [], []
+    langs = {}
+    for m in cfg["markets"]:
+        langs.setdefault(m["lang"], m["country"])
     for app in cfg["apps"]:
-        for m in cfg["markets"]:
-            if app.get("ios_id"):
+        if app.get("ios_id"):
+            for m in cfg["markets"]:
                 try:
                     rows = _apple(app, m["country"], since)
                     _note(f"App Store {m['country'].upper()}", rows)
                     fetched += rows
                 except Exception as ex:  # noqa: BLE001
                     errors.append(f"App Store {m['country'].upper()} : {type(ex).__name__}")
-            if app.get("android_package"):
+        if app.get("android_package"):
+            for lang, ctry in langs.items():
                 try:
-                    rows = _google(app, m, since, max_count)
-                    _note(f"Google Play {m['country'].upper()}", rows)
+                    rows = _google(app, lang, ctry, since, max_count)
+                    _note(f"Google Play ({lang})", rows)
                     fetched += rows
                 except Exception as ex:  # noqa: BLE001
-                    errors.append(f"Google Play {m['country'].upper()} : {type(ex).__name__}")
+                    errors.append(f"Google Play ({lang}) : {type(ex).__name__}")
     return fetched, errors
 
 

@@ -13,6 +13,9 @@ DEFAULTS = {
         "rating_below": 3.0, "rating_min_reviews": 8, "rating_window_hours": 3,
         "theme_min": 8, "cooldown_minutes": 180,
     },
+    "anomaly": {"baseline_days": 14, "min_reviews": 15, "volume_min": 15, "volume_factor": 3,
+                "rating_low": 3.2, "rating_drop": 0.6, "baseline_min_reviews": 20, "neg_share": 0.4,
+                "version_share": 0.7, "theme_min": 5, "theme_factor": 3, "silence_base_min": 8},
     "llm": {"min_interval_s": 6, "recent_days": 3},
     "models": {
         "gemini": {"classify": "gemini-3.5-flash-lite", "summary": "gemini-3.6-flash"},

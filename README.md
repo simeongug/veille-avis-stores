@@ -42,7 +42,19 @@ calculé comme si on était à cette date (les avis publiés après sont ignoré
 stockées à part, dans `data-replay/`. Pour enchaîner deux jours, lancer d'abord le 05/07 puis le 06/07.
 Les logs indiquent, pour chaque pays, combien d'avis ont été retrouvés et jusqu'à quelle date.
 
+## Anomalies et classement des avis négatifs
+
+- Chaque matin, le jour est comparé aux 14 jours précédents, plateforme par plateforme : volume, moyenne, part
+  d'avis à 1-2 étoiles, version concentrant les avis négatifs, sujet qui explose, avis identiques répétés,
+  silence inhabituel. Un encadré rouge « Anomalie détectée » s'affiche en tête de l'email (seuils dans la section
+  `anomaly` de la config) et l'objet commence par « ⚠ Anomalie ».
+- Les avis négatifs sont rangés en trois groupes : problèmes critiques (bugs, points bloquants), améliorations
+  demandées, autres problèmes (non identifiés).
+
 ## Limites connues
+
+- Google Play ne donne pas le pays d'un avis, seulement sa langue : les avis Android sont donc regroupés par langue
+  (une requête par langue, sans doublons). Seul l'App Store donne un vrai pays.
 
 - Sources publiques : Apple (flux RSS, environ 500 avis récents par pays) et Play Store (par pays et langue).
   Une source qui ne répond pas est signalée en bas de l'email plutôt que passée sous silence.

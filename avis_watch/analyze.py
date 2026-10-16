@@ -17,6 +17,14 @@ KEYWORDS = [
     ("bug", r"bug|plante|crash|se ferme|lent|\blag|bloqu|freeze|charge pas|ne s.ouvre|écran blanc|white screen"),
 ]
 
+CRIT = (r"plante|crash|bug|ne fonctionne|fonctionne pas|fonctionne plus|marche pas|ne marche|impossible|bloqu|"
+        r"écran blanc|rien ne|inaccessible|ne charge|charge pas|erreur|error|not working|doesn.t work|does not work|"
+        r"can.t |cannot|won.t|broken|blank|dead app|no funciona|no carga|en blanco|funktioniert nicht|"
+        r"non funziona|inutilisable|aucun classement|pas de |disparu|n.affiche")
+IDEA = (r"j.aimerais|il faudrait|ajouter|ajoutez|manque|suggestion|pourrait|pourriez|serait bien|serait mieux|"
+        r"améliorer|amélioration|option|would be nice|should|please add|wish|i.d like|would like|add a |"
+        r"falta|sería|wäre|vorschlag|souhait")
+
 _last_call = [0.0]
 
 
@@ -93,7 +101,10 @@ def heuristic(r):
     sev = 0
     if sentiment == "negative":
         sev = 2 if re.search(r"plante|crash|écran blanc|ne s.ouvre|impossible", txt) else 1
-    return {"sentiment": sentiment, "theme": theme, "severity": sev, "fr": ""}
+    kind = ""
+    if sentiment != "positive":
+        kind = "critique" if re.search(CRIT, txt) else "amelioration" if re.search(IDEA, txt) else "autre"
+    return {"sentiment": sentiment, "theme": theme, "severity": sev, "fr": "", "kind": kind}
 
 
 SYSTEM = (
@@ -103,9 +114,12 @@ SYSTEM = (
     "theme (un parmi {themes}), sentiment (positive, neutral ou negative), "
     "severity (0 = aucun problème, 1 = gêne mineure, 2 = fonction importante cassée, "
     "3 = critique : plantage total, connexion impossible, paiement, données personnelles), "
+    "categorie (pour les avis non positifs : critique = bug, plantage, fonction cassée ou inaccessible, "
+    "point bloquant ; amelioration = suggestion ou demande de fonctionnalité ; autre = mécontentement "
+    "non identifié, vague ou hors sujet ; chaîne vide pour un avis positif), "
     "fr (traduction française courte de l'avis s'il n'est pas en français, sinon chaîne vide). "
     "Réponds uniquement par un tableau JSON : [{{\"i\":1,\"theme\":\"...\",\"sentiment\":\"...\","
-    "\"severity\":0,\"fr\":\"\"}}, ...]."
+    "\"severity\":0,\"categorie\":\"\",\"fr\":\"\"}}, ...]."
 )
 
 
@@ -121,7 +135,12 @@ def _llm_batch(cfg, batch):
         theme = row.get("theme") if row.get("theme") in cfg["themes"] else "autre"
         sent = row.get("sentiment") if row.get("sentiment") in ("positive", "neutral", "negative") else "neutral"
         sev = max(0, min(3, int(row.get("severity", 0))))
-        res[r["id"]] = {"sentiment": sent, "theme": theme, "severity": sev,
+        kind = row.get("categorie") if row.get("categorie") in ("critique", "amelioration", "autre") else ""
+        if sent != "positive" and not kind:
+            kind = heuristic(r)["kind"]
+        if sent != "positive" and sev >= 2:
+            kind = "critique"
+        res[r["id"]] = {"sentiment": sent, "theme": theme, "severity": sev, "kind": kind,
                         "fr": str(row.get("fr", ""))[:300]}
     return res
 

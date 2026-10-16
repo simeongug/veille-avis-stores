@@ -48,6 +48,18 @@ alerts:
   theme_min: 8            # alerte si N avis négatifs sur le même sujet dans la fenêtre longue
   cooldown_minutes: 180   # pas de renvoi de la même alerte avant ce délai
 
+# Détection d'anomalies (comparaison du jour aux 14 jours précédents, par plateforme)
+anomaly:
+  min_reviews: 15         # nombre minimum d'avis du jour pour juger la note et la part de négatifs
+  volume_min: 15          # volume anormal : au moins N avis...
+  volume_factor: 3        # ...et au moins N fois la moyenne habituelle
+  rating_low: 3.2         # note du jour jugée anormalement basse en dessous de ce seuil
+  rating_drop: 0.6        # ou baisse d'au moins N points vs la moyenne habituelle
+  neg_share: 0.4          # part d'avis à 1-2 étoiles jugée anormale
+  version_share: 0.7      # une version concentre au moins N % des avis négatifs
+  theme_min: 5            # un sujet cumule au moins N avis négatifs...
+  theme_factor: 3         # ...et au moins N fois sa moyenne habituelle
+
 # IA : Gemini (niveau gratuit) si le secret GEMINI_API_KEY existe, sinon Claude si ANTHROPIC_API_KEY existe,
 # sinon analyse par mots-clés. Les noms de modèles sont à vérifier dans Google AI Studio.
 llm:
