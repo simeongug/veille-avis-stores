@@ -129,7 +129,12 @@ def fetch_ratings(cfg):
             try:
                 from google_play_scraper import app as gp_app
                 d = gp_app(app["android_package"], lang=cfg["markets"][0]["lang"], country=cfg["markets"][0]["country"])
-                if d.get("ratings"):
+                hist = d.get("histogram") or []
+                if len(hist) == 5 and sum(hist) > 0:  # moyenne recalculée sur la répartition 1 à 5 étoiles
+                    avg = sum((i + 1) * c for i, c in enumerate(hist)) / sum(hist)
+                    print(f"Google Play : répartition {hist}, moyenne {avg:.2f} (score affiché {d.get('score')})")
+                    add("android", avg, sum(hist))
+                elif d.get("ratings"):
                     add("android", d["score"], d["ratings"])
             except Exception as ex:  # noqa: BLE001
                 print(f"Note globale Google Play indisponible ({type(ex).__name__})")
