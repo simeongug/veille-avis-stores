@@ -390,8 +390,8 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
 
     kc = ctx["kinds"]
     total_neg = sum(kc.values())
-    blocks.append(h(f"Avis négatifs · {total_neg}"))
-    txt += ["", f"AVIS NÉGATIFS : {total_neg}"]
+    blocks.append(h("Principaux thèmes des avis négatifs"))
+    txt += ["", "PRINCIPAUX THÈMES DES AVIS NÉGATIFS"]
 
     def sub(label, count, color, note):
         return (f'<div style="margin:16px 0 2px;font-size:13px;font-weight:700;color:{color}">{e(label)} · {count}'
