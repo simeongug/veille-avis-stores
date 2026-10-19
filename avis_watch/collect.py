@@ -105,6 +105,21 @@ def collect_all(cfg, since, max_count=1500):
     return fetched, errors
 
 
+def _play_page_score(package):
+    """Note telle qu'affichée sur la fiche publique Google Play (ce que voit un visiteur), ou None si illisible."""
+    import re
+    try:
+        html = requests.get("https://play.google.com/store/apps/details", headers=UA, timeout=30,
+                            params={"id": package, "hl": "en", "gl": "es"}).text
+        for rx in (r'aria-label="Rated ([0-9]+(?:\.[0-9]+)?) stars', r'"ratingValue"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)'):
+            m = re.search(rx, html)
+            if m and 1 <= float(m.group(1)) <= 5:
+                return float(m.group(1))
+    except Exception as ex:  # noqa: BLE001
+        print(f"Fiche publique Google Play illisible ({type(ex).__name__})")
+    return None
+
+
 def fetch_ratings(cfg):
     """Note moyenne globale par magasin (toutes les notes, pas seulement les avis commentés)."""
     agg = {}
@@ -129,10 +144,15 @@ def fetch_ratings(cfg):
             try:
                 from google_play_scraper import app as gp_app
                 d = gp_app(app["android_package"], lang=cfg["markets"][0]["lang"], country=cfg["markets"][0]["country"])
+                shown = _play_page_score(app["android_package"])
+                if shown is not None:
+                    print(f"Google Play : note affichée sur la fiche publique {shown} (outil de collecte : {d.get('score')})")
                 hist = d.get("histogram") or []
                 if len(hist) == 5 and sum(hist) > 0:  # moyenne recalculée sur la répartition 1 à 5 étoiles
                     avg = sum((i + 1) * c for i, c in enumerate(hist)) / sum(hist)
                     print(f"Google Play : répartition {hist}, moyenne {avg:.2f} (score affiché {d.get('score')})")
+                    if shown is not None and abs(shown - avg) > 0.3:  # on s'aligne sur ce que voit un visiteur de la fiche
+                        avg = shown
                     add("android", avg, sum(hist))
                 elif d.get("ratings"):
                     add("android", d["score"], d["ratings"])

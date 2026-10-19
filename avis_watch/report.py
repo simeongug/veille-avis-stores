@@ -417,7 +417,6 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
 
     kc = ctx["kinds"]
     total_neg = sum(kc.values())
-    blocks.append(h("Principaux thèmes des avis négatifs"))
     txt += ["", "PRINCIPAUX THÈMES DES AVIS NÉGATIFS"]
 
     def sub(label, count, color, note):
@@ -431,11 +430,14 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
         txt.extend([f"- {pb['title']} ({_problem_meta(pb)})", f"  « {text_of(pb['rs'][0])} »"])
 
     if not total_neg:
+        blocks.append(h("Avis négatifs"))
         blocks.append(p("Rien à signaler."))
         txt.append("Rien à signaler.")
     else:
-        blocks.append(p(f'<b style="color:{RED}">{kc["critique"]} critiques</b> · {kc["amelioration"]} améliorations '
-                        f'· {kc["autre"]} autres'))
+        blocks.append(f'<div style="margin:26px 0 0;padding-top:14px;border-top:1px solid {LINE};font-size:15px">'
+                      f'<b style="color:{RED}">{kc["critique"]} critiques</b> · {kc["amelioration"]} améliorations '
+                      f'· {kc["autre"]} autres</div>')
+        blocks.append('<div style="margin:12px 0 0;font-size:13px;font-weight:700">Principaux thèmes des avis négatifs</div>')
         txt.append(f"{kc['critique']} critiques · {kc['amelioration']} améliorations · {kc['autre']} autres")
         if kc["critique"]:
             for pb in problems:
