@@ -8,7 +8,7 @@ from html import unescape
 from zoneinfo import ZoneInfo
 
 from . import analyze, anomalies
-from .render import (GREY, INK, LINE, RED, STORES, cap, country, delta, fnum, h, long_date, p,
+from .render import (GREEN, GREY, INK, LINE, RED, STORES, cap, country, delta, fnum, h, long_date, p,
                      page, quote)
 
 THEME_LABELS = {"carte": "Carte et tracé", "direct": "Direct et vidéo", "classement": "Classements et résultats",
@@ -148,7 +148,7 @@ def compute(cfg, recs, now, day):
     best_theme = Counter(r["a"]["theme"] for r in pos).most_common(1)
     positives = sorted([r for r in day_recs if r["rating"] == 5 and 25 <= len(r.get("text", "")) <= 200],
                        key=lambda r: -len(r["text"]))
-    return {"rows": rows, "problems": problems, "ideas": ideas, "unidentified": unidentified, "kinds": kinds, "watch": watch, "late": late, "n": n_all,
+    return {"rows": rows, "problems": problems, "ideas": ideas, "unidentified": unidentified, "kinds": kinds, "watch": watch, "late": late, "n": n_all, "day_recs": day_recs,
             "positives": positives, "best_theme": best_theme[0] if best_theme else None}
 
 
@@ -280,6 +280,46 @@ def stats_table(rows, ratings, prev):
             f'margin-top:16px"><tr>{head}</tr>{body}</table>{legend}')
 
 
+def _orig(r):
+    t = f"{r.get('title', '')}. {r.get('text', '')}".strip(". ").strip()
+    return t if len(t) <= 400 else t[:397].rstrip() + "…"
+
+
+def all_reviews(day_recs, cap_n=300):
+    """Tous les avis du jour : traduction française en premier, texte original dessous (pour vérifier)."""
+    html, txt = [h(f"Tous les avis du jour · {len(day_recs)}")], ["", f"TOUS LES AVIS DU JOUR : {len(day_recs)}"]
+    if not day_recs:
+        return html + [p("Aucun avis.", f"color:{GREY}")], txt + ["Aucun avis."]
+    shown = 0
+    for store in ("ios", "android"):
+        rs = sorted((r for r in day_recs if r["store"] == store), key=lambda r: (r["rating"], r["date"]))
+        if not rs:
+            continue
+        html.append(f'<div style="margin:16px 0 8px;font-size:13px;font-weight:600">{e(STORES[store])} '
+                    f'<span style="font-weight:400;color:{GREY}">· {len(rs)} avis, du plus bas au plus haut</span></div>')
+        txt += ["", f"{STORES[store]} ({len(rs)})"]
+        for r in rs:
+            if shown >= cap_n:
+                break
+            shown += 1
+            col = RED if r["rating"] <= 2 else GREY if r["rating"] == 3 else GREEN
+            fr, orig = r["a"].get("fr", ""), _orig(r)
+            meta = f"{cap(country(r['country']))}" + (f" · v{r['version']}" if r.get("version") else "")
+            body = e(fr or orig)
+            sub = ""
+            if fr and fr.strip() != orig.strip():
+                sub = f'<div style="color:{GREY};font-style:italic;margin-top:1px">{e(orig)}</div>'
+            elif not fr and r["country"] not in ("fr", "be", "ch", "lang:fr") and r.get("lang", "fr") != "fr":
+                sub = f'<div style="color:{GREY};margin-top:1px">(non traduit)</div>'
+            html.append(f'<div style="margin:0 0 9px;font-size:12.5px;line-height:1.4">'
+                        f'<span style="color:{col};font-weight:600">{r["rating"]}/5</span>'
+                        f'<span style="color:{GREY}"> · {e(meta)}</span><br>{body}{sub}</div>')
+            txt += [f"- {r['rating']}/5 · {meta} : {fr or orig}"] + ([f"    original : {orig}"] if sub and fr else [])
+    if len(day_recs) > shown:
+        html.append(p(f"{len(day_recs) - shown} avis supplémentaires non affichés.", f"font-size:12px;color:{GREY}"))
+    return html, txt
+
+
 def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", ratings=None, prev_ratings=None):
     ctx = compute(cfg, recs, now, day)
     describe_problems(cfg, ctx["problems"] + ctx["ideas"], use_llm)
@@ -290,16 +330,23 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
     blocks, txt = [], []
     if anoms:
         level = "forte" if any(x["level"] == "forte" for x in anoms) else "modérée"
-        inner = f'<div style="font-weight:700;color:{RED}">● Anomalie détectée · {level}</div>'
+        inner = f'<div style="font-weight:600;color:{RED}">Anomalie détectée · {level}</div>'
         txt += [f"ANOMALIE DÉTECTÉE ({level})"]
         for x in anoms:
-            inner += f'<div style="margin-top:10px;font-weight:600;font-size:14px">{e(x["store"])}</div>'
-            txt.append(x["store"])
-            for sg in x["signals"]:
-                inner += f'<div style="margin-top:2px;font-size:14px">– {emphasize(sg)}</div>'
-                txt.append(f"- {sg}")
-        blocks.append(f'<div style="margin-top:18px;padding:12px 14px;background:#FEF2F2;border-radius:6px">'
+            sigs = " · ".join(x["signals"][:3])
+            inner += (f'<div style="margin-top:6px;font-size:13px;line-height:1.45"><b>{e(x["store"])}</b>'
+                      f' — {emphasize(sigs)}</div>')
+            txt.append(f"{x['store']} : {sigs}")
+        blocks.append(f'<div style="margin-top:18px;padding:2px 0 2px 12px;border-left:3px solid {RED}">'
                       f'{inner}</div>')
+        kc0 = ctx["kinds"]
+        n_neg0 = sum(kc0.values())
+        if n_neg0:
+            verdict = f"{n_neg0} avis négatifs sur {ctx['n']}, dont {kc0['critique']} critiques"
+            if problems:
+                verdict += f". Sujet principal : {problems[0]['title'].lower()}"
+            blocks.append(p(emphasize(verdict + "."), "font-size:15px;margin-top:12px"))
+            txt += ["", verdict + "."]
         txt.append("")
     if lines:
         blocks.append('<div style="margin-top:18px">' + "".join(p(emphasize(ln), "font-size:16px") for ln in lines)
@@ -352,33 +399,26 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
                 blocks.append(quote(text_of(r), meta_of(r)))
                 txt.append(f"  « {text_of(r)} »")
 
-    if watch:
-        blocks.append(h("Pays à surveiller"))
-        txt += ["", "PAYS À SURVEILLER"]
-        for w in watch:
-            t = (f"{cap(country(w['country']))} : {round(w['rate'] * 100)} % d'avis négatifs ({w['n']} avis) "
-                 f"contre {round(w['others'] * 100)} % ailleurs.")
-            blocks.append(p(e(t)))
-            txt.append(t)
-
+    notes = []
+    for w in watch:
+        notes.append(f"{cap(country(w['country']))} : {round(w['rate'] * 100)} % d'avis négatifs ({w['n']} avis) "
+                     f"contre {round(w['others'] * 100)} % ailleurs.")
     if late:
         lneg = sum(1 for r in late if r["a"]["sentiment"] == "negative")
-        themes = Counter(r["a"]["theme"] for r in late if r["a"]["sentiment"] == "negative").most_common(2)
         tz = ZoneInfo(cfg["timezone"])
         d0, d1 = min(dt(r["date"]) for r in late), max(dt(r["date"]) for r in late)
-        t = (f"{len(late)} avis arrivés en retard (publiés du {d0.astimezone(tz):%d/%m} au "
-             f"{d1.astimezone(tz):%d/%m}), dont {lneg} négatifs")
-        if themes:
-            t += " : surtout " + ", ".join(f"{THEME_LABELS[k].lower()} ({c})" for k, c in themes)
-        blocks += [h("Avis tardifs"), p(emphasize(t + "."))]
-        txt += ["", "AVIS TARDIFS", t + "."]
+        notes.append(f"{len(late)} avis arrivés en retard (publiés du {d0.astimezone(tz):%d/%m} au "
+                     f"{d1.astimezone(tz):%d/%m}), dont {lneg} négatifs.")
+    if notes:
+        blocks.append(h("À noter"))
+        txt += ["", "À NOTER"]
+        for t in notes:
+            blocks.append(p(emphasize(t), "font-size:14px"))
+            txt.append(t)
 
-    if ctx["best_theme"] and ctx["positives"]:
-        k, c = ctx["best_theme"]
-        blocks += [h("Ce qui plaît"), p(emphasize(f"{THEME_LABELS[k]} : {c} avis positifs.")),
-                   quote(text_of(ctx["positives"][0]), meta_of(ctx["positives"][0]))]
-        txt += ["", "CE QUI PLAÎT", f"{THEME_LABELS[k]} : {c} avis positifs.",
-                f"« {text_of(ctx['positives'][0])} »"]
+    all_html, all_txt = all_reviews(ctx["day_recs"])
+    blocks += all_html
+    txt += all_txt
 
     foot = f"{ctx['n']} avis analysés · {', '.join(m['country'].upper() for m in cfg['markets'])}"
     blocks.append(p(e(foot), f"font-size:12px;color:{GREY};margin-top:26px"))
