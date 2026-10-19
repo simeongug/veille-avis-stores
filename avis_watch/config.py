@@ -39,4 +39,8 @@ def load(path, data_dir="data"):
     with open(path, encoding="utf-8") as f:
         cfg = _merge(DEFAULTS, yaml.safe_load(f))
     cfg["data_dir"] = os.path.join(data_dir, cfg["event"])
+    if cfg.get("markets") == "all":  # tous les pays de l'App Store et toutes les langues du Play Store
+        from .worldwide import APPLE_COUNTRIES, PLAY_LANGS
+        cfg["markets"] = [{"country": c, "lang": ""} for c in APPLE_COUNTRIES]
+        cfg["play_langs"] = list(PLAY_LANGS)
     return cfg

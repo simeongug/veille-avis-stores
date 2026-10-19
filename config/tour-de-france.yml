@@ -43,17 +43,9 @@ apps:
     ios_id: "1528742741"
     android_package: com.aso.tdf2012int
 
-# Pays surveillés (un magasin par pays). La langue sert au Play Store.
-markets:
-  - {country: fr, lang: fr}
-  - {country: be, lang: fr}
-  - {country: ch, lang: fr}
-  - {country: es, lang: es}
-  - {country: it, lang: it}
-  - {country: gb, lang: en}
-  - {country: us, lang: en}
-  - {country: nl, lang: nl}
-  - {country: de, lang: de}
+# Pays surveillés : « all » = tous les pays de l'App Store et toutes les langues du Play Store.
+# On peut aussi lister des pays : - {country: fr, lang: fr}
+markets: all
 
 # Chaque matin, on repasse sur les N derniers jours pour rattraper les avis arrivés en retard.
 rescan_days: 14

@@ -19,11 +19,24 @@ LANGS = {"fr": "en français", "en": "en anglais", "es": "en espagnol", "it": "e
          "pt": "en portugais", "ar": "en arabe"}
 
 
+def _babel(kind, code):
+    try:
+        from babel import Locale
+        loc = Locale("fr")
+        return (loc.territories if kind == "t" else loc.languages).get(code)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def country(c):
     """Pays (App Store) ou langue (Google Play, codée « lang:xx »)."""
     if c.startswith("lang:"):
-        return "avis " + LANGS.get(c[5:], c[5:])
-    return COUNTRIES.get(c, c.upper())
+        code = c[5:]
+        if code in LANGS:
+            return "avis " + LANGS[code]
+        name = _babel("l", "he" if code == "iw" else code)
+        return f"avis en {name}" if name else "avis " + code
+    return COUNTRIES.get(c) or _babel("t", c.upper()) or c.upper()
 
 
 def cap(t):

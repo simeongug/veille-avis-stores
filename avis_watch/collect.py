@@ -79,29 +79,53 @@ def _note(label, rows):
         print(f"{label} : 0 avis")
 
 
-def collect_all(cfg, since, max_count=1500):
-    """Retourne (avis, erreurs). Une source en échec n'arrête pas les autres."""
-    fetched, errors = [], []
+def _parallel(jobs, workers):
+    """jobs : liste de (étiquette, fonction). Retourne [(étiquette, résultat ou exception)] dans l'ordre."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def run(job):
+        label, fn = job
+        try:
+            return label, fn()
+        except Exception as ex:  # noqa: BLE001
+            return label, ex
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return list(pool.map(run, jobs))
+
+
+def _play_langs(cfg):
+    if cfg.get("play_langs"):
+        return {lang: "us" for lang in cfg["play_langs"]}
     langs = {}
     for m in cfg["markets"]:
         langs.setdefault(m["lang"], m["country"])
+    return langs
+
+
+def collect_all(cfg, since, max_count=1500):
+    """Retourne (avis, erreurs). Une source en échec n'arrête pas les autres."""
+    fetched, errors = [], []
+    many = len(cfg["markets"]) > 20
     for app in cfg["apps"]:
         if app.get("ios_id"):
-            for m in cfg["markets"]:
-                try:
-                    rows = _apple(app, m["country"], since)
-                    _note(f"App Store {m['country'].upper()}", rows)
-                    fetched += rows
-                except Exception as ex:  # noqa: BLE001
-                    errors.append(f"App Store {m['country'].upper()} : {type(ex).__name__}")
+            jobs = [(m["country"], (lambda c=m["country"]: _apple(app, c, since))) for m in cfg["markets"]]
+            for ctry, res in _parallel(jobs, 6):
+                if isinstance(res, Exception):
+                    errors.append(f"App Store {ctry.upper()} : {type(res).__name__}")
+                else:
+                    if res or not many:
+                        _note(f"App Store {ctry.upper()}", res)
+                    fetched += res
         if app.get("android_package"):
-            for lang, ctry in langs.items():
-                try:
-                    rows = _google(app, lang, ctry, since, max_count)
-                    _note(f"Google Play ({lang})", rows)
-                    fetched += rows
-                except Exception as ex:  # noqa: BLE001
-                    errors.append(f"Google Play ({lang}) : {type(ex).__name__}")
+            jobs = [(lang, (lambda l=lang, c=ctry: _google(app, l, c, since, max_count)))
+                    for lang, ctry in _play_langs(cfg).items()]
+            for lang, res in _parallel(jobs, 4):
+                if isinstance(res, Exception):
+                    errors.append(f"Google Play ({lang}) : {type(res).__name__}")
+                else:
+                    if res or not many:
+                        _note(f"Google Play ({lang})", res)
+                    fetched += res
     return fetched, errors
 
 
@@ -131,19 +155,19 @@ def fetch_ratings(cfg):
 
     for app in cfg["apps"]:
         if app.get("ios_id"):
-            for m in cfg["markets"]:
-                try:
-                    r = requests.get("https://itunes.apple.com/lookup", headers=UA, timeout=30,
-                                     params={"id": app["ios_id"], "country": m["country"]}).json()
-                    res = (r.get("results") or [{}])[0]
-                    if res.get("userRatingCount"):
-                        add("ios", res["averageUserRating"], res["userRatingCount"])
-                except Exception as ex:  # noqa: BLE001
-                    print(f"Note globale App Store {m['country'].upper()} indisponible ({type(ex).__name__})")
+            def look(ctry, app=app):
+                r = requests.get("https://itunes.apple.com/lookup", headers=UA, timeout=30,
+                                 params={"id": app["ios_id"], "country": ctry}).json()
+                return (r.get("results") or [{}])[0]
+            for ctry, res in _parallel([(m["country"], (lambda c=m["country"]: look(c))) for m in cfg["markets"]], 6):
+                if isinstance(res, Exception):
+                    print(f"Note globale App Store {ctry.upper()} indisponible ({type(res).__name__})")
+                elif res.get("userRatingCount"):
+                    add("ios", res["averageUserRating"], res["userRatingCount"])
         if app.get("android_package"):
             try:
                 from google_play_scraper import app as gp_app
-                d = gp_app(app["android_package"], lang=cfg["markets"][0]["lang"], country=cfg["markets"][0]["country"])
+                d = gp_app(app["android_package"], lang=cfg["markets"][0]["lang"] or "en", country=cfg["markets"][0]["country"])
                 shown = _play_page_score(app["android_package"])
                 if shown is not None:
                     print(f"Google Play : note affichée sur la fiche publique {shown} (outil de collecte : {d.get('score')})")

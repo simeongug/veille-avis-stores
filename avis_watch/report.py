@@ -473,7 +473,9 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
     blocks += all_html
     txt += all_txt
 
-    foot = f"{ctx['n']} avis analysés · {', '.join(m['country'].upper() for m in cfg['markets'])}"
+    mk = cfg["markets"]
+    foot = f"{ctx['n']} avis analysés · " + (", ".join(m["country"].upper() for m in mk) if len(mk) <= 12
+                                           else f"{len(mk)} pays de l'App Store et toutes les langues du Play Store")
     blocks.append(p(e(foot), f"font-size:12px;color:{GREY};margin-top:26px"))
     if ratings:
         parts = [f"{STORES[k]} {fnum(v['avg'], 2)} ({format(v['count'], ',').replace(',', ' ')} notes)"
