@@ -9,9 +9,14 @@ on:
   workflow_dispatch:
     inputs:
       event:
-        description: "Événement (nom du fichier dans config/, ex. tour-de-france ou dakar)"
-        required: false
+        description: "Épreuve"
+        type: choice
+        required: true
         default: tour-de-france
+        options:
+          - tour-de-france
+          - dakar
+          - vuelta
       to:
         description: "Destinataire de test (vide = destinataires de la config)"
         required: false

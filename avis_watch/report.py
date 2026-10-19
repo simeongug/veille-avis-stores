@@ -350,6 +350,33 @@ def all_reviews(day_recs, cap_n=300):
     return html, txt
 
 
+def late_notes(cfg, late):
+    """Avis publiés un jour précédent mais récupérés seulement maintenant : par jour, avec conseil de rejeu."""
+    tz = ZoneInfo(cfg["timezone"])
+    by_day = defaultdict(list)
+    for r in late:
+        by_day[dt(r["date"]).astimezone(tz).date()].append(r)
+    out = []
+    ordered = sorted(by_day.items(), key=lambda kv: -len(kv[1]))
+    for d, rs in ordered[:3]:
+        neg = sum(1 for r in rs if r["a"]["sentiment"] == "negative")
+        st = stage_of(cfg, d)
+        if st:
+            low = st["title"].lower()
+            what = f"pour {'l’' if low.startswith('é') else 'le '}{low} "
+        else:
+            what = "pour "
+        t = (f"{len(rs)} avis arrivés en retard, publiés {what}le {d:%d/%m/%Y} (dont {neg} négatifs). "
+             f"Ils ne figuraient pas dans le rapport de ce jour-là")
+        if len(rs) >= 10:
+            t += (f" : il est conseillé de rejouer ce rapport (rejeu à la date {d + timedelta(days=1):%Y-%m-%d}T09:00)")
+        out.append(t + ".")
+    rest = sum(len(rs) for _, rs in ordered[3:])
+    if rest:
+        out.append(f"{rest} autres avis tardifs, répartis sur d'autres jours.")
+    return out
+
+
 def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", ratings=None, prev_ratings=None):
     ctx = compute(cfg, recs, now, day)
     describe_problems(cfg, ctx["problems"] + ctx["ideas"], use_llm)
@@ -411,8 +438,6 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
                         f'· {kc["autre"]} autres'))
         txt.append(f"{kc['critique']} critiques · {kc['amelioration']} améliorations · {kc['autre']} autres")
         if kc["critique"]:
-            blocks.append(sub("Problèmes critiques", kc["critique"], RED, "bugs, points bloquants"))
-            txt.append("Problèmes critiques (bugs, points bloquants)")
             for pb in problems:
                 group(pb)
             if not problems:
@@ -434,11 +459,7 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
         notes.append(f"{cap(country(w['country']))} : {round(w['rate'] * 100)} % d'avis négatifs ({w['n']} avis) "
                      f"contre {round(w['others'] * 100)} % ailleurs.")
     if late:
-        lneg = sum(1 for r in late if r["a"]["sentiment"] == "negative")
-        tz = ZoneInfo(cfg["timezone"])
-        d0, d1 = min(dt(r["date"]) for r in late), max(dt(r["date"]) for r in late)
-        notes.append(f"{len(late)} avis arrivés en retard (publiés du {d0.astimezone(tz):%d/%m} au "
-                     f"{d1.astimezone(tz):%d/%m}), dont {lneg} négatifs.")
+        notes += late_notes(cfg, late)
     if notes:
         blocks.append(h("À noter"))
         txt += ["", "À NOTER"]

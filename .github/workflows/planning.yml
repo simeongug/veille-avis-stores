@@ -1,0 +1,47 @@
+name: Dates d'envoi automatique
+
+on:
+  workflow_dispatch:
+    inputs:
+      event:
+        description: "Épreuve"
+        type: choice
+        required: true
+        default: tour-de-france
+        options:
+          - tour-de-france
+          - dakar
+          - vuelta
+      date_debut:
+        description: "Premier jour d'envoi, AAAA-MM-JJ (vide avec fin vide = désactiver)"
+        required: false
+      date_fin:
+        description: "Dernier jour d'envoi inclus, AAAA-MM-JJ"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: avis-data
+  cancel-in-progress: false
+
+jobs:
+  planning:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Enregistrer les dates
+        env:
+          EVENT: ${{ inputs.event }}
+          DEBUT: ${{ inputs.date_debut }}
+          FIN: ${{ inputs.date_fin }}
+        run: |
+          python -m avis_watch.planning --config "config/${EVENT}.yml" --from "$DEBUT" --to "$FIN"
+          git config user.name "avis-watch"
+          git config user.email "avis-watch@users.noreply.github.com"
+          git add config
+          git diff --cached --quiet || (git commit -m "config: dates d'envoi de ${EVENT}" && git pull --rebase && git push)
