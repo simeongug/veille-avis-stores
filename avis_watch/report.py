@@ -192,30 +192,60 @@ def describe_problems(cfg, problems, use_llm):
         analyze.note_error("Titres des problèmes", ex)
 
 
-def summary_lines(cfg, ctx, day, use_llm, has_anomaly=False):
-    """Accroche : un verdict court. Le détail (chiffres, problèmes, pays, avis) est affiché plus bas, et
-    l'anomalie a déjà son encadré : on ne les répète pas."""
+def day_tone(ctx, ratings):
+    """Niveau de la journée, décidé par le code (jamais par l'IA) : 'calme', 'a_surveiller' ou 'degrade'.
+    Sans anomalie détectée, on ne dépasse pas 'degrade'."""
+    tot = ctx["rows"][0][2]
+    n, kc = tot["n"], ctx["kinds"]
+    neg, crit = sum(kc.values()), kc["critique"]
+    if not n or not neg:
+        return "calme"
+    share = neg / n
+    ref = _global(ratings, None)
+    better = tot["avg"] is not None and ref is not None and tot["avg"] >= ref - 0.1
+    if crit >= 10 and share >= 0.4 and not better:
+        return "degrade"
+    if (crit >= 3 and share >= 0.25 and not better) or crit >= 6:
+        return "a_surveiller"
+    return "calme"
+
+
+def summary_lines(cfg, ctx, day, use_llm, has_anomaly=False, ratings=None):
+    """Accroche : un verdict court et mesuré. Le détail (chiffres, problèmes, pays, avis) est affiché plus bas,
+    et l'anomalie a déjà son encadré : on ne les répète pas."""
     if has_anomaly:
         return []
     problems, kc = ctx["problems"], ctx["kinds"]
+    tone = day_tone(ctx, ratings)
+    tot = ctx["rows"][0][2]
+    fallback = {"calme": "Journée globalement calme" + (f", avec quelques avis négatifs isolés ({problems[0]['title'].lower()})."
+                                                           if problems else "."),
+                "a_surveiller": f"Journée à surveiller : {problems[0]['title'].lower()}." if problems else "Journée à surveiller.",
+                "degrade": "Journée dégradée : plusieurs avis signalent des problèmes sérieux."}[tone]
     if use_llm and analyze.llm_available():
-        facts = {"evenement": cfg["name"], "jour": str(day), "avis_negatifs": kc,
+        g = _global(ratings, None)
+        facts = {"evenement": cfg["name"], "niveau": tone, "avis_du_jour": tot["n"],
+                 "moyenne_du_jour": round(tot["avg"], 1) if tot["avg"] else None,
+                 "moyenne_globale": round(g, 1) if g else None, "avis_negatifs": kc,
                  "sujets_critiques": [x["title"] for x in problems[:3]]}
         try:
             out = analyze.llm_text(
                 cfg, "summary",
                 "Tu rédiges l'accroche d'un email quotidien pour une équipe produit : une ou deux phrases courtes "
-                "au maximum, en français, qui donnent le verdict de la journée. Les chiffres, les problèmes, les pays "
-                "et les avis sont affichés juste en dessous : ne les répète pas. N'invente rien. Pas de puces, "
-                "pas de titre.", json.dumps(facts, ensure_ascii=False), max_tokens=300)
+                "au maximum, en français, factuelles et mesurées. Le champ « niveau » est imposé et fixe le ton : "
+                "calme = journée normale, on peut mentionner des cas isolés sans les dramatiser ; a_surveiller = "
+                "un sujet mérite attention ; degrade = problèmes sérieux. Compare toujours la moyenne du jour à la "
+                "moyenne globale : si elle est meilleure ou égale, la journée ne peut pas être décrite comme "
+                "mauvaise. Ne dramatise pas : pas de mots comme critique, alarmant, blocage majeur, urgent ou "
+                "intervention requise, et aucune consigne ou recommandation. Les chiffres, problèmes, pays et avis "
+                "sont affichés dessous : ne les répète pas. N'invente rien. Pas de puces, pas de titre.",
+                json.dumps(facts, ensure_ascii=False), max_tokens=300)
             lines = [ln.replace("**", "").strip("-•* ").strip() for ln in out.splitlines() if ln.strip()]
             if lines:
                 return lines[:2]
         except Exception as ex:  # noqa: BLE001
             analyze.note_error("Résumé IA", ex)
-    if problems:
-        return [f"Journée à surveiller : {problems[0]['title']}."]
-    return ["Journée calme : aucun problème critique."]
+    return [fallback]
 
 
 def _arrow(x):
@@ -324,7 +354,7 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
     ctx = compute(cfg, recs, now, day)
     describe_problems(cfg, ctx["problems"] + ctx["ideas"], use_llm)
     anoms = anomalies.detect(cfg, recs, day, THEME_LABELS)
-    lines = summary_lines(cfg, ctx, day, use_llm, bool(anoms))
+    lines = summary_lines(cfg, ctx, day, use_llm, bool(anoms), ratings)
     problems, ideas, watch, late = ctx["problems"], ctx["ideas"], ctx["watch"], ctx["late"]
 
     blocks, txt = [], []
