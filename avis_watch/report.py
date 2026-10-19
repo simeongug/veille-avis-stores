@@ -453,7 +453,7 @@ def build_daily(cfg, recs, now, day, errors, use_llm, test=False, tag="", rating
     foot = f"{ctx['n']} avis analysés · {', '.join(m['country'].upper() for m in cfg['markets'])}"
     blocks.append(p(e(foot), f"font-size:12px;color:{GREY};margin-top:26px"))
     if ratings:
-        parts = [f"{STORES[k]} {fnum(v['avg'], 2)} ({v['count']:,} notes)".replace(",", " ")
+        parts = [f"{STORES[k]} {fnum(v['avg'], 2)} ({format(v['count'], ',').replace(',', ' ')} notes)"
                  for k, v in ratings.items()]
         blocks.append(p(e("Moyennes globales relevées : " + " · ".join(parts) +
                           (" (valeurs du jour du lancement, pas de la date rejouée)" if tag else "")),
