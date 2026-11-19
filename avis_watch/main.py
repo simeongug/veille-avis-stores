@@ -6,6 +6,15 @@ from zoneinfo import ZoneInfo
 from . import alerts, analyze, config, mailer, report, store
 
 
+def _parse_as_of(v):
+    """Rejeu : JJ/MM/AAAA HH:MM (heure facultative, 9 h par défaut) ou AAAA-MM-JJTHH:MM."""
+    import re
+    m = re.fullmatch(r"(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})(?:[ T]+(\d{1,2})[:h](\d{2})?)?", v.strip())
+    if m:
+        return datetime(int(m[3]), int(m[2]), int(m[1]), int(m[4] or 9), int(m[5] or 0))
+    return datetime.fromisoformat(v.strip())
+
+
 def _in_window(cfg, today):
     a, b = cfg.get("active_from"), cfg.get("active_to")
     if not a or not b:
@@ -79,7 +88,7 @@ def main(argv=None):
     cfg = config.load(args.config, args.data_dir)
     tz = ZoneInfo(cfg["timezone"])
     if args.as_of:
-        now = datetime.fromisoformat(args.as_of).replace(tzinfo=tz).astimezone(timezone.utc)
+        now = _parse_as_of(args.as_of).replace(tzinfo=tz).astimezone(timezone.utc)
     else:
         now = datetime.now(timezone.utc)
     local = now.astimezone(tz)

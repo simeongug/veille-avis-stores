@@ -25,7 +25,7 @@ on:
         type: boolean
         default: false
       as_of:
-        description: "Rejeu : date et heure de Paris simulées, ex. 2026-07-05T09:00 (vide = maintenant)"
+        description: "Rejeu : date et heure de Paris simulées, ex. 05/07/2026 09:00 (vide = maintenant)"
         required: false
 
 permissions:

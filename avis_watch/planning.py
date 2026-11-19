@@ -8,9 +8,20 @@ EMAIL = re.compile(r"^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$")
 
 
 def _check(v):
-    if v:
-        date.fromisoformat(v)  # lève une erreur si le format n'est pas AAAA-MM-JJ
-    return v or ""
+    """Accepte JJ/MM/AAAA (aussi avec - ou .) ou AAAA-MM-JJ ; renvoie AAAA-MM-JJ pour la config."""
+    v = (v or "").strip()
+    if not v:
+        return ""
+    m = re.fullmatch(r"(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})", v)
+    try:
+        d = date(int(m[3]), int(m[2]), int(m[1])) if m else date.fromisoformat(v)
+    except ValueError:
+        sys.exit(f"Date invalide : « {v} » (format attendu JJ/MM/AAAA, ex. 04/07/2027)")
+    return d.isoformat()
+
+
+def _fr(iso):
+    return date.fromisoformat(iso).strftime("%d/%m/%Y")
 
 
 def _set_recipients(txt, section, emails):
@@ -49,7 +60,7 @@ def main(argv=None):
             txt, n = re.subn(rf"^{key}:.*$", f"{key}: {val}".rstrip(), txt, count=1, flags=re.M)
             if not n:
                 sys.exit(f"{key} introuvable dans {a.config}")
-        msgs.append(f"envois automatiques du {start} au {end}" if start else "envois automatiques désactivés")
+        msgs.append(f"envois automatiques du {_fr(start)} au {_fr(end)}" if start else "envois automatiques désactivés")
     if emails:
         txt = _set_recipients(_set_recipients(txt, "report", emails), "alerts", emails)
         msgs.append("destinataires du rapport et des alertes : " + ", ".join(emails))

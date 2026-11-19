@@ -13,10 +13,10 @@ on:
           - dakar
           - vuelta
       date_debut:
-        description: "Premier jour d'envoi, AAAA-MM-JJ (vide = dates inchangées)"
+        description: "Premier jour d'envoi, JJ/MM/AAAA (vide = dates inchangées)"
         required: false
       date_fin:
-        description: "Dernier jour d'envoi inclus, AAAA-MM-JJ"
+        description: "Dernier jour d'envoi inclus, JJ/MM/AAAA"
         required: false
       destinataires:
         description: "Destinataires du rapport et des alertes, séparés par des virgules (vide = inchangés)"
