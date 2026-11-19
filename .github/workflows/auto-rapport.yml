@@ -1,0 +1,26 @@
+name: Envoi planifié · rapport
+
+# Activé et désactivé par « Dates et destinataires d'envoi » : il ne tourne que pendant les épreuves
+# (et se désactive seul après la dernière date de fin). Les tests manuels se font dans l'autre onglet.
+on:
+  schedule:
+    # GitHub retarde souvent les crons de plusieurs heures (surtout à :00) : plusieurs déclenchements de 07:00 à
+    # 11:00 UTC ; le script n'envoie qu'entre 9 h et 13 h (Paris), une seule fois par jour.
+    - cron: "7 7 * * *"
+    - cron: "23 7 * * *"
+    - cron: "41 7 * * *"
+    - cron: "7 8 * * *"
+    - cron: "23 8 * * *"
+    - cron: "41 8 * * *"
+    - cron: "17 9 * * *"
+    - cron: "17 10 * * *"
+    - cron: "17 11 * * *"
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  run:
+    uses: ./.github/workflows/daily.yml
+    secrets: inherit

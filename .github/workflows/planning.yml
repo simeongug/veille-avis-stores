@@ -67,7 +67,7 @@ jobs:
             b=$(sed -n 's/^active_to:[[:space:]]*"\{0,1\}\([0-9-]*\).*/\1/p' "$f")
             if [ -n "$b" ] && [[ ! "$today" > "$b" ]]; then future=true; fi
           done
-          for wf in alerts.yml daily.yml; do
+          for wf in auto-rapport.yml auto-alertes.yml; do
             if [ "$future" = true ]; then gh workflow enable $wf -R "$GITHUB_REPOSITORY"; else gh workflow disable $wf -R "$GITHUB_REPOSITORY"; fi
           done
           echo "Envois automatiques : $([ "$future" = true ] && echo activés || echo désactivés)"

@@ -1,9 +1,7 @@
 name: Alertes
 
 on:
-  schedule:
-    # une fois par heure pendant les épreuves (workflow désactivé le reste du temps)
-    - cron: "13 * * * *"
+  workflow_call: {}   # utilisé par auto-alertes.yml (envois planifiés)
   workflow_dispatch:
     inputs:
       event:
@@ -64,7 +62,7 @@ jobs:
               b=$(sed -n 's/^active_to:[[:space:]]*"\{0,1\}\([0-9-]*\).*/\1/p' "$f")
               if [ -n "$b" ] && [[ ! "$today" > "$b" ]]; then future=true; fi
             done
-            if [ "$future" = false ]; then echo "Aucune épreuve à venir : désactivation"; gh workflow disable alerts.yml -R "$GITHUB_REPOSITORY"; fi
+            if [ "$future" = false ]; then echo "Aucune épreuve à venir : désactivation"; for w in auto-rapport.yml auto-alertes.yml; do gh workflow disable $w -R "$GITHUB_REPOSITORY"; done; fi
           fi
       - uses: actions/setup-python@v5
         if: steps.win.outputs.run == 'true'

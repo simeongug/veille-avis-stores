@@ -1,19 +1,7 @@
 name: Rapport quotidien
 
 on:
-  schedule:
-    # GitHub retarde souvent les crons de plusieurs heures (surtout à :00). On déclenche donc plusieurs fois
-    # de 07:00 à 11:00 UTC sur des minutes peu chargées : le script n'envoie qu'entre 9 h et 13 h heure de Paris,
-    # une seule fois par jour, et seulement dans la fenêtre d'activité (sinon arrêt immédiat, sans coût notable).
-    - cron: "7 7 * * *"
-    - cron: "23 7 * * *"
-    - cron: "41 7 * * *"
-    - cron: "7 8 * * *"
-    - cron: "23 8 * * *"
-    - cron: "41 8 * * *"
-    - cron: "17 9 * * *"
-    - cron: "17 10 * * *"
-    - cron: "17 11 * * *"
+  workflow_call: {}   # utilisé par auto-rapport.yml (envois planifiés)
   workflow_dispatch:
     inputs:
       event:
@@ -77,7 +65,7 @@ jobs:
               b=$(sed -n 's/^active_to:[[:space:]]*"\{0,1\}\([0-9-]*\).*/\1/p' "$f")
               if [ -n "$b" ] && [[ ! "$today" > "$b" ]]; then future=true; fi
             done
-            if [ "$future" = false ]; then echo "Aucune épreuve à venir : désactivation"; gh workflow disable daily.yml -R "$GITHUB_REPOSITORY"; fi
+            if [ "$future" = false ]; then echo "Aucune épreuve à venir : désactivation"; for w in auto-rapport.yml auto-alertes.yml; do gh workflow disable $w -R "$GITHUB_REPOSITORY"; done; fi
           fi
       - uses: actions/setup-python@v5
         if: steps.win.outputs.run == 'true'

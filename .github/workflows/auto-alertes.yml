@@ -1,0 +1,17 @@
+name: Envoi planifié · alertes
+
+# Activé et désactivé par « Dates et destinataires d'envoi » : il ne tourne que pendant les épreuves
+# (et se désactive seul après la dernière date de fin). Les tests manuels se font dans l'autre onglet.
+on:
+  schedule:
+    # une fois par heure
+    - cron: "13 * * * *"
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  run:
+    uses: ./.github/workflows/alerts.yml
+    secrets: inherit
