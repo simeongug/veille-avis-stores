@@ -222,6 +222,8 @@ def summary_lines(cfg, ctx, day, use_llm, has_anomaly=False, ratings=None):
                                                            if problems else "."),
                 "a_surveiller": f"Journée à surveiller : {problems[0]['title'].lower()}." if problems else "Journée à surveiller.",
                 "degrade": "Journée dégradée : plusieurs avis signalent des problèmes sérieux."}[tone]
+    if tone == "calme" and not problems:  # rien à dire : phrase fixe, pas d'appel IA (gain ~1 min)
+        return [fallback]
     if use_llm and analyze.llm_available() and not analyze.STATUS["down"]:
         g = _global(ratings, None)
         facts = {"evenement": cfg["name"], "niveau": tone, "avis_du_jour": tot["n"],

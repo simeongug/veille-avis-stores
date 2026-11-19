@@ -132,8 +132,10 @@ def main(argv=None):
         recs, errors = _gather(cfg, args, now, cfg["rescan_days"])
         day = date.fromisoformat(args.date) if args.date else local.date() - timedelta(days=1)
         ratings, prev = _ratings(cfg, args, local)
+        t = time.time()
         subject, html, text = report.build_daily(cfg, recs, now, day, errors, not args.no_llm, test, tag,
                                                  ratings, prev)
+        print(f"⏱ Rédaction de l'email (titres et accroche par l'IA) : {time.time() - t:.0f} s")
         to = args.to.split(",") if args.to else cfg["report"]["recipients"]
         t = time.time()
         mailer.send(subject, html, text, to, args.dry_run, "rapport")
