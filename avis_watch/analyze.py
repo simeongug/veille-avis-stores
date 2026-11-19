@@ -84,9 +84,9 @@ def _gemini(model, system, user, max_tokens, json_mode):
     last = ""
     for attempt in range(3):
         try:
-            r = requests.post(url, headers=headers, json=body, timeout=60)
+            r = requests.post(url, headers=headers, json=body, timeout=30)
         except requests.exceptions.RequestException as ex:  # délai dépassé, coupure : modèle suivant
-            raise RuntimeError(f"Gemini HTTP 503 ({model}) : {type(ex).__name__}") from ex
+            raise RuntimeError(f"Gemini sans réponse ({model}) : {type(ex).__name__}") from ex
         if r.status_code in (429, 500, 503):  # limite du niveau gratuit ou surcharge
             last = f"HTTP {r.status_code} ({model}) : {r.text[:220]}"
             if r.status_code == 429 and re.search(r"limit:\s*0|PerDay|per day", r.text):
@@ -112,6 +112,8 @@ def llm_text(cfg, role, system, user, max_tokens=1500, json_mode=False):
     prov = provider()
     _throttle(cfg)
     model = cfg["models"][prov][role]
+    if STATUS["down"]:  # Gemini déjà en panne pendant ce passage : on n'attend plus, repli immédiat
+        raise RuntimeError("IA indisponible pendant ce passage")
     if prov == "gemini":
         last = None
         for m in [model] + [x for x in cfg["models"]["gemini"].get("fallbacks", []) if x != model]:
@@ -119,6 +121,9 @@ def llm_text(cfg, role, system, user, max_tokens=1500, json_mode=False):
                 return _gemini(m, system, user, max_tokens, json_mode)
             except RuntimeError as ex:
                 last = ex
+                if "sans réponse" in str(ex):  # Gemini ne répond pas : les autres modèles non plus, en général
+                    STATUS["down"] = True
+                    raise
                 if not re.search(r"HTTP (404|429|500|503)", str(ex)):  # modèle inconnu ou saturé : suivant
                     raise
         raise last
@@ -206,7 +211,7 @@ def classify(cfg, recs, use_llm=True, now=None):
             res = _llm_batch(cfg, batch)
         except Exception as ex:  # noqa: BLE001
             note_error("Analyse IA", ex)
-            if re.search(r"HTTP (429|500|503)|limit|quota|timeout|timed out", str(ex), re.I):
+            if re.search(r"HTTP (429|500|503)|limit|quota|timeout|sans réponse|indisponible", str(ex), re.I):
                 STATUS["down"] = True
             res = {}
         for r in batch:
