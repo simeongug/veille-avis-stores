@@ -28,6 +28,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # active ou désactive les envois automatiques
 
 concurrency:
   group: avis-data
@@ -56,3 +57,17 @@ jobs:
           git config user.email "avis-watch@users.noreply.github.com"
           git add config
           git diff --cached --quiet || (git commit -m "config: dates d'envoi de ${EVENT}" && git pull --rebase && git push)
+      - name: Activer ou désactiver les envois automatiques
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Actifs si au moins une épreuve a une date de fin aujourd'hui ou plus tard ; sinon tout est éteint.
+          today=$(TZ=Europe/Paris date +%F); future=false
+          for f in config/*.yml; do
+            b=$(sed -n 's/^active_to:[[:space:]]*"\{0,1\}\([0-9-]*\).*/\1/p' "$f")
+            if [ -n "$b" ] && [[ ! "$today" > "$b" ]]; then future=true; fi
+          done
+          for wf in alerts.yml daily.yml; do
+            if [ "$future" = true ]; then gh workflow enable $wf -R "$GITHUB_REPOSITORY"; else gh workflow disable $wf -R "$GITHUB_REPOSITORY"; fi
+          done
+          echo "Envois automatiques : $([ "$future" = true ] && echo activés || echo désactivés)"

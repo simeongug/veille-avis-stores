@@ -38,6 +38,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # pour se désactiver seul une fois la dernière épreuve terminée
 
 concurrency:
   group: avis-data
@@ -55,6 +56,8 @@ jobs:
       # (économise ~1 min de quota GitHub par passage, soit des centaines de minutes par mois pour les alertes).
       - name: Fenêtre d'activité
         id: win
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           run=true
           if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
@@ -66,6 +69,16 @@ jobs:
             done
           fi
           echo "run=$run" >> "$GITHUB_OUTPUT"; echo "Exécution : $run"
+          # Plus aucune épreuve en cours ni à venir : le workflow se désactive (zéro passage, zéro minute consommée).
+          # Il est réactivé par « Dates et destinataires d'envoi » quand on renseigne les dates d'une épreuve.
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            future=false
+            for f in config/*.yml; do
+              b=$(sed -n 's/^active_to:[[:space:]]*"\{0,1\}\([0-9-]*\).*/\1/p' "$f")
+              if [ -n "$b" ] && [[ ! "$today" > "$b" ]]; then future=true; fi
+            done
+            if [ "$future" = false ]; then echo "Aucune épreuve à venir : désactivation"; gh workflow disable daily.yml -R "$GITHUB_REPOSITORY"; fi
+          fi
       - uses: actions/setup-python@v5
         if: steps.win.outputs.run == 'true'
         with:
