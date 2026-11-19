@@ -2,9 +2,8 @@ name: Alertes
 
 on:
   schedule:
-    # deux fois par heure (GitHub saute ou retarde des passages) ; arrêt immédiat hors fenêtre d'activité
+    # une fois par heure pendant les épreuves (workflow désactivé le reste du temps)
     - cron: "13 * * * *"
-    - cron: "43 * * * *"
   workflow_dispatch:
     inputs:
       event:
