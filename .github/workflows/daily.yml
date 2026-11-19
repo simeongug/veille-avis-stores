@@ -40,12 +40,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Lancement planifié hors de toute fenêtre d'activité : on s'arrête ici, sans installer Python
+      # (économise ~1 min de quota GitHub par passage, soit des centaines de minutes par mois pour les alertes).
+      - name: Fenêtre d'activité
+        id: win
+        run: |
+          run=true
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            run=false; today=$(TZ=Europe/Paris date +%F)
+            for f in config/*.yml; do
+              a=$(sed -n 's/^active_from:[[:space:]]*"\{0,1\}\([0-9-]*\).*/\1/p' "$f")
+              b=$(sed -n 's/^active_to:[[:space:]]*"\{0,1\}\([0-9-]*\).*/\1/p' "$f")
+              if [ -n "$a" ] && [ -n "$b" ] && [[ ! "$today" < "$a" ]] && [[ ! "$today" > "$b" ]]; then run=true; fi
+            done
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"; echo "Exécution : $run"
       - uses: actions/setup-python@v5
+        if: steps.win.outputs.run == 'true'
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -r requirements.txt
+      - if: steps.win.outputs.run == 'true'
+        run: pip install -r requirements.txt
       - name: Rapport
+        if: steps.win.outputs.run == 'true'
         env:
           EVENT: ${{ github.event_name }}
           TO: ${{ inputs.to }}
@@ -73,13 +91,13 @@ jobs:
             echo "== $f"; python -m avis_watch.main daily --config "$f" "${args[@]}" || echo "échec pour $f"
           done
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.win.outputs.run == 'true'
         with:
           name: emails
           path: out/
           if-no-files-found: ignore
       - name: Sauvegarder les avis collectés
-        if: always()
+        if: always() && steps.win.outputs.run == 'true'
         run: |
           git config user.name "avis-watch"
           git config user.email "avis-watch@users.noreply.github.com"

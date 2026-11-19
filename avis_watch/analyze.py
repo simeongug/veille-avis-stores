@@ -26,7 +26,7 @@ IDEA = (r"j.aimerais|il faudrait|ajouter|ajoutez|manque|suggestion|pourrait|pour
         r"falta|sería|wäre|vorschlag|souhait")
 
 _last_call = [0.0]
-STATUS = {"provider": None, "errors": [], "smart": 0, "ok": 0}
+STATUS = {"provider": None, "errors": [], "smart": 0, "ok": 0, "down": False}
 
 
 def note_error(where, ex):
@@ -41,8 +41,12 @@ def status_line():
     prov = {"gemini": "Gemini", "claude": "Claude"}.get(STATUS["provider"])
     if not prov:
         return "Analyse : mots-clés et notes (aucune clé IA détectée par le workflow)."
-    if STATUS["errors"]:
+    if STATUS["errors"] and not STATUS["ok"]:
         return f"Analyse : mots-clés et notes ({prov} indisponible : {STATUS['errors'][0]})."
+    if STATUS["errors"]:
+        rest = STATUS["smart"] - STATUS["ok"]
+        return (f"Analyse par {prov} ({STATUS['ok']} avis) ; {rest} avis par mots-clés et notes, "
+                f"repris par l'IA au prochain passage ({STATUS['errors'][0]}).")
     if not STATUS["smart"]:
         return f"Analyse : {prov} actif, aucun nouvel avis à analyser."
     return f"Analyse par {prov} ({STATUS['ok']} avis)."
@@ -180,17 +184,27 @@ def _llm_batch(cfg, batch):
 def classify(cfg, recs, use_llm=True, now=None):
     """L'IA analyse les avis récents (nouveaux ou des derniers jours) ; l'historique plus ancien, qui ne sert
     qu'aux moyennes, est classé par mots-clés pour rester dans les limites du niveau gratuit."""
-    todo = [r for r in recs if "a" not in r]
     llm = use_llm and llm_available()
     STATUS["provider"] = provider() if llm else None
     limit = timedelta(days=cfg.get("llm", {}).get("recent_days", 3))
-    smart = [r for r in todo if llm and now and now - datetime.fromisoformat(r["first_seen"]) <= limit]
+    recent = lambda r: now and now - datetime.fromisoformat(r["first_seen"]) <= limit  # noqa: E731
+    # Avis récents classés par mots-clés faute d'IA (quota, panne) : l'IA les reprend au passage suivant.
+    retry = [r for r in recs if llm and r.get("a", {}).get("h") and recent(r)] if llm else []
+    for r in retry:
+        del r["a"]
+    todo = [r for r in recs if "a" not in r]
+    smart = [r for r in todo if llm and recent(r)]
+    smart_ids = {r["id"] for r in smart}
     for i in range(0, len(smart), 25):
         batch = smart[i:i + 25]
+        if STATUS["down"]:  # quota épuisé ou panne persistante : inutile d'insister sur les lots suivants
+            break
         try:
             res = _llm_batch(cfg, batch)
         except Exception as ex:  # noqa: BLE001
             note_error("Analyse IA", ex)
+            if re.search(r"HTTP (429|500|503)|limit|quota", str(ex), re.I):
+                STATUS["down"] = True
             res = {}
         for r in batch:
             if r["id"] in res:
@@ -200,5 +214,7 @@ def classify(cfg, recs, use_llm=True, now=None):
     for r in todo:
         if "a" not in r:
             r["a"] = heuristic(r)
+            if r["id"] in smart_ids:
+                r["a"]["h"] = 1  # à reprendre par l'IA
     print(f"Analyse : {len(smart)} avis soumis à l'IA ({provider() or 'aucune IA'}), {len(todo)} classés au total")
     return len(todo)
