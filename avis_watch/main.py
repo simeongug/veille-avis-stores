@@ -1,5 +1,6 @@
 import argparse
 import sys
+import time
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -35,7 +36,13 @@ def _gather(cfg, args, now, days):
     else:
         from . import collect
         since = now - timedelta(days=days)
-        fetched, errors = collect.collect_all(cfg, since=since, max_count=6000 if args.as_of else 1500)
+        only = None
+        if args.command == "alert" and not args.as_of:  # alertes : pays et langues actifs seulement
+            only = store.read_json(cfg, "active.json", None)
+            if only:
+                print(f"Collecte légère : {len(only.get('ios', []))} pays App Store, "
+                      f"{len(only.get('android', []))} langues Google Play actifs récemment")
+        fetched, errors = collect.collect_all(cfg, since=since, max_count=6000 if args.as_of else 1500, only=only)
         if args.as_of:  # rejeu : les flux ne donnent que les avis les plus récents, l'historique peut ne pas remonter assez
             from .render import STORES
             for st, name in STORES.items():
@@ -47,10 +54,22 @@ def _gather(cfg, args, now, days):
         if args.as_of:  # rejeu : on ignore les avis publiés après la date simulée
             fetched = [r for r in fetched if datetime.fromisoformat(r["date"]) <= now]
     new =store.merge(recs, fetched, now.isoformat(), seed)
+    t = time.time()
     n = analyze.classify(cfg, list(recs.values()), use_llm=not args.no_llm, now=now)
+    print(f"⏱ Analyse : {time.time() - t:.0f} s")
     store.save(cfg, recs)
+    if args.command != "alert" and not args.demo:  # collecte complète : on note les pays et langues actifs
+        store.write_json(cfg, "active.json", _active(recs, now))
     print(f"{len(new)} nouveaux avis, {n} analysés, {len(recs)} au total, {len(errors)} source(s) en échec")
     return recs, errors
+
+
+def _active(recs, now, days=60):
+    """Pays App Store et langues Google Play ayant reçu au moins un avis sur les N derniers jours."""
+    lim = now - timedelta(days=days)
+    rs = [r for r in recs.values() if datetime.fromisoformat(r["date"]) >= lim]
+    return {"ios": sorted({r["country"] for r in rs if r["store"] == "ios"}),
+            "android": sorted({r["lang"] for r in rs if r["store"] == "android" and r.get("lang")})}
 
 
 def _ratings(cfg, args, local):
@@ -85,6 +104,7 @@ def main(argv=None):
                     help="rejeu : simule la date et l'heure de Paris (ex. 2026-07-05T09:00)")
     args = ap.parse_args(argv)
 
+    t0 = time.time()
     cfg = config.load(args.config, args.data_dir)
     tz = ZoneInfo(cfg["timezone"])
     if args.as_of:
@@ -115,7 +135,9 @@ def main(argv=None):
         subject, html, text = report.build_daily(cfg, recs, now, day, errors, not args.no_llm, test, tag,
                                                  ratings, prev)
         to = args.to.split(",") if args.to else cfg["report"]["recipients"]
+        t = time.time()
         mailer.send(subject, html, text, to, args.dry_run, "rapport")
+        print(f"⏱ Envoi : {time.time() - t:.0f} s · Total : {time.time() - t0:.0f} s")
         if args.scheduled and not args.dry_run:
             state["last_daily"] = str(local.date())
             store.write_json(cfg, "state.json", state)
@@ -125,11 +147,12 @@ def main(argv=None):
     found = alerts.check(cfg, recs, now)
     found, state = alerts.filter_cooldown(cfg, found, now)
     if not found:
-        print("Aucune alerte.")
+        print(f"Aucune alerte. ⏱ Total : {time.time() - t0:.0f} s")
         return 0
     subject, html, text = alerts.build(cfg, found, now, test)
     to = args.to.split(",") if args.to else cfg["alerts"]["recipients"]
     mailer.send(subject, html, text, to, args.dry_run, "alerte")
+    print(f"⏱ Total : {time.time() - t0:.0f} s")
     if not args.dry_run and not test:
         alerts.mark_sent(cfg, state, found, now)
     return 0

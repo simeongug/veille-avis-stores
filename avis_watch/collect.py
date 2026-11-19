@@ -102,30 +102,47 @@ def _play_langs(cfg):
     return langs
 
 
-def collect_all(cfg, since, max_count=1500):
-    """Retourne (avis, erreurs). Une source en échec n'arrête pas les autres."""
+def _workers(cfg, key, default):
+    return int(cfg.get("collect", {}).get(key, default))
+
+
+def collect_all(cfg, since, max_count=1500, only=None):
+    """Retourne (avis, erreurs). Une source en échec n'arrête pas les autres.
+    only : {"ios": [pays], "android": [langues]} pour une collecte légère (alertes) : seulement les pays et
+    langues actifs récemment, une seule page chacun."""
     fetched, errors = [], []
-    many = len(cfg["markets"]) > 20
+    markets = cfg["markets"]
+    langs = _play_langs(cfg)
+    pages, count = 10, max_count
+    if only:
+        markets = [m for m in markets if m["country"] in set(only.get("ios", []))]
+        langs = {k: v for k, v in langs.items() if k in set(only.get("android", []))}
+        pages, count = 1, 100
+    many = len(markets) > 20
     for app in cfg["apps"]:
         if app.get("ios_id"):
-            jobs = [(m["country"], (lambda c=m["country"]: _apple(app, c, since))) for m in cfg["markets"]]
-            for ctry, res in _parallel(jobs, 6):
+            t = time.time()
+            jobs = [(m["country"], (lambda c=m["country"]: _apple(app, c, since, pages))) for m in markets]
+            for ctry, res in _parallel(jobs, _workers(cfg, "ios_workers", 16)):
                 if isinstance(res, Exception):
                     errors.append(f"App Store {ctry.upper()} : {type(res).__name__}")
                 else:
                     if res or not many:
                         _note(f"App Store {ctry.upper()}", res)
                     fetched += res
+            print(f"⏱ Collecte App Store ({len(markets)} pays) : {time.time() - t:.0f} s")
         if app.get("android_package"):
-            jobs = [(lang, (lambda l=lang, c=ctry: _google(app, l, c, since, max_count)))
-                    for lang, ctry in _play_langs(cfg).items()]
-            for lang, res in _parallel(jobs, 4):
+            t = time.time()
+            jobs = [(lang, (lambda l=lang, c=ctry: _google(app, l, c, since, count)))
+                    for lang, ctry in langs.items()]
+            for lang, res in _parallel(jobs, _workers(cfg, "play_workers", 8)):
                 if isinstance(res, Exception):
                     errors.append(f"Google Play ({lang}) : {type(res).__name__}")
                 else:
                     if res or not many:
                         _note(f"Google Play ({lang})", res)
                     fetched += res
+            print(f"⏱ Collecte Google Play ({len(langs)} langues) : {time.time() - t:.0f} s")
     return fetched, errors
 
 
@@ -146,7 +163,7 @@ def _play_page_score(package):
 
 def fetch_ratings(cfg):
     """Note moyenne globale par magasin (toutes les notes, pas seulement les avis commentés)."""
-    agg = {}
+    agg, t = {}, time.time()
 
     def add(store, avg, count):
         a = agg.setdefault(store, [0.0, 0])
@@ -159,7 +176,8 @@ def fetch_ratings(cfg):
                 r = requests.get("https://itunes.apple.com/lookup", headers=UA, timeout=30,
                                  params={"id": app["ios_id"], "country": ctry}).json()
                 return (r.get("results") or [{}])[0]
-            for ctry, res in _parallel([(m["country"], (lambda c=m["country"]: look(c))) for m in cfg["markets"]], 6):
+            for ctry, res in _parallel([(m["country"], (lambda c=m["country"]: look(c))) for m in cfg["markets"]],
+                                     _workers(cfg, "ios_workers", 16)):
                 if isinstance(res, Exception):
                     print(f"Note globale App Store {ctry.upper()} indisponible ({type(res).__name__})")
                 elif res.get("userRatingCount"):
@@ -182,4 +200,5 @@ def fetch_ratings(cfg):
                     add("android", d["score"], d["ratings"])
             except Exception as ex:  # noqa: BLE001
                 print(f"Note globale Google Play indisponible ({type(ex).__name__})")
+    print(f"⏱ Moyennes globales : {time.time() - t:.0f} s")
     return {k: {"avg": v[0] / v[1], "count": v[1]} for k, v in agg.items() if v[1]}

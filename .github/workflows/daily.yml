@@ -43,6 +43,9 @@ concurrency:
   group: avis-data
   cancel-in-progress: false
 
+env:
+  PYTHONUNBUFFERED: "1"   # journal en temps réel
+
 jobs:
   daily:
     runs-on: ubuntu-latest
