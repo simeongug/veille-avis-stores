@@ -83,7 +83,10 @@ def _gemini(model, system, user, max_tokens, json_mode):
     headers = {"x-goog-api-key": os.environ["GEMINI_API_KEY"], "Content-Type": "application/json"}
     last = ""
     for attempt in range(3):
-        r = requests.post(url, headers=headers, json=body, timeout=120)
+        try:
+            r = requests.post(url, headers=headers, json=body, timeout=60)
+        except requests.exceptions.RequestException as ex:  # délai dépassé, coupure : modèle suivant
+            raise RuntimeError(f"Gemini HTTP 503 ({model}) : {type(ex).__name__}") from ex
         if r.status_code in (429, 500, 503):  # limite du niveau gratuit ou surcharge
             last = f"HTTP {r.status_code} ({model}) : {r.text[:220]}"
             if r.status_code == 429 and re.search(r"limit:\s*0|PerDay|per day", r.text):
@@ -203,7 +206,7 @@ def classify(cfg, recs, use_llm=True, now=None):
             res = _llm_batch(cfg, batch)
         except Exception as ex:  # noqa: BLE001
             note_error("Analyse IA", ex)
-            if re.search(r"HTTP (429|500|503)|limit|quota", str(ex), re.I):
+            if re.search(r"HTTP (429|500|503)|limit|quota|timeout|timed out", str(ex), re.I):
                 STATUS["down"] = True
             res = {}
         for r in batch:

@@ -174,7 +174,7 @@ def _problem_meta(pb):
 
 def describe_problems(cfg, problems, use_llm):
     """Titre concret pour chaque problème (ex. « La carte reste blanche pendant l'arrivée »)."""
-    if not (use_llm and analyze.llm_available() and problems):
+    if not (use_llm and analyze.llm_available() and problems) or analyze.STATUS["down"]:
         return
     items = [{"i": i + 1, "sujet": THEME_LABELS[pb["theme"]], "avis": [text_of(r)[:200] for r in pb["rs"][:8]]}
              for i, pb in enumerate(problems)]
@@ -222,7 +222,7 @@ def summary_lines(cfg, ctx, day, use_llm, has_anomaly=False, ratings=None):
                                                            if problems else "."),
                 "a_surveiller": f"Journée à surveiller : {problems[0]['title'].lower()}." if problems else "Journée à surveiller.",
                 "degrade": "Journée dégradée : plusieurs avis signalent des problèmes sérieux."}[tone]
-    if use_llm and analyze.llm_available():
+    if use_llm and analyze.llm_available() and not analyze.STATUS["down"]:
         g = _global(ratings, None)
         facts = {"evenement": cfg["name"], "niveau": tone, "avis_du_jour": tot["n"],
                  "moyenne_du_jour": round(tot["avg"], 1) if tot["avg"] else None,
