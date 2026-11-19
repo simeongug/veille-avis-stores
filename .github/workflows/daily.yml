@@ -2,10 +2,18 @@ name: Rapport quotidien
 
 on:
   schedule:
-    # 07:00 et 08:00 UTC : le script n'envoie qu'à partir de 9 h heure de Paris (été comme hiver),
-    # une seule fois par jour, et seulement dans la fenêtre d'activité de l'événement.
-    - cron: "0 7 * * *"
-    - cron: "0 8 * * *"
+    # GitHub retarde souvent les crons de plusieurs heures (surtout à :00). On déclenche donc plusieurs fois
+    # de 07:00 à 11:00 UTC sur des minutes peu chargées : le script n'envoie qu'entre 9 h et 13 h heure de Paris,
+    # une seule fois par jour, et seulement dans la fenêtre d'activité (sinon arrêt immédiat, sans coût notable).
+    - cron: "7 7 * * *"
+    - cron: "23 7 * * *"
+    - cron: "41 7 * * *"
+    - cron: "7 8 * * *"
+    - cron: "23 8 * * *"
+    - cron: "41 8 * * *"
+    - cron: "17 9 * * *"
+    - cron: "17 10 * * *"
+    - cron: "17 11 * * *"
   workflow_dispatch:
     inputs:
       event:
